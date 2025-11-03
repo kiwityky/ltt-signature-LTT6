@@ -49,51 +49,6 @@
                     <p id="loading-feed" class="text-center text-gray-500 p-8">Đang tải video...</p>
                 </div>
             </section>
-            <aside class="info-column" aria-label="Tiện ích học tập">
-                <section class="info-card" id="smart-pen-card">
-                    <div class="info-card__header">
-                        <div>
-                            <h2 class="info-card__title">🖊️ Bút Thông Minh</h2>
-                            <p class="info-card__subtitle">Theo dõi thời gian học tập thực sự từ cảm biến chuyển động</p>
-                        </div>
-                        <button id="smart-pen-refresh" type="button" class="info-card__action">
-                            <span class="info-card__action-label">Làm mới</span>
-                            <span class="info-card__action-spinner" aria-hidden="true"></span>
-                        </button>
-                    </div>
-                    <div class="smart-pen-status" id="smart-pen-status" role="status" aria-live="polite">Đang chờ dữ liệu...</div>
-                    <div class="smart-pen-grid">
-                        <div class="smart-pen-stat">
-                            <span class="smart-pen-stat__value" id="smart-pen-today">--</span>
-                            <span class="smart-pen-stat__label">Thời gian hôm nay</span>
-                        </div>
-                        <div class="smart-pen-stat">
-                            <span class="smart-pen-stat__value" id="smart-pen-total">--</span>
-                            <span class="smart-pen-stat__label">Tổng tích lũy</span>
-                        </div>
-                        <div class="smart-pen-stat">
-                            <span class="smart-pen-stat__value" id="smart-pen-last-sync">--</span>
-                            <span class="smart-pen-stat__label">Đồng bộ gần nhất</span>
-                        </div>
-                    </div>
-                    <div class="smart-pen-timeline" id="smart-pen-timeline" aria-live="polite"></div>
-                    <p class="smart-pen-empty hidden" id="smart-pen-empty">Chưa có dữ liệu nào từ thiết bị. Hãy nhấn nút đồng bộ trên bút để bắt đầu!</p>
-                </section>
-
-                <section class="info-card">
-                    <div class="info-card__header">
-                        <div>
-                            <h2 class="info-card__title">💡 Mẹo học nhanh</h2>
-                            <p class="info-card__subtitle">Ghi nhớ mục tiêu và giữ tập trung mỗi buổi học</p>
-                        </div>
-                    </div>
-                    <ul class="tips-list">
-                        <li>Đặt lịch nhắc nhở học tập theo từng khung giờ cố định.</li>
-                        <li>Sử dụng chế độ Toàn màn hình cho video để giảm xao nhãng.</li>
-                        <li>Đồng bộ dữ liệu bút sau mỗi buổi học để cập nhật tiến độ.</li>
-                    </ul>
-                </section>
-            </aside>
         </main>
 
         <div id="auth-container" class="video-card p-6 mb-8 fixed inset-0 z-30 bg-white hidden">
@@ -117,7 +72,7 @@
 
     
 
-    <div id="post-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
+    <div id="post-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
   <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg transform transition-all">
     <div class="flex justify-between items-center border-b pb-3 mb-4">
       <h3 class="text-xl font-bold text-sky-800">Đăng Video Mới</h3>
@@ -252,7 +207,7 @@
   </button>
 
   <!-- Nút Bút Thông Minh -->
-  <button id="smart-pen-nav-btn" class="text-sky-700 hover:text-sky-800 transition duration-150 p-2" title="Bút thông minh">
+  <button id="smart-pen-nav-btn" class="text-sky-700 hover:text-sky-800 transition duration-150 p-2" title="Bút thông minh" aria-haspopup="dialog" aria-controls="smart-pen-modal">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 20h9" />
       <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
@@ -272,7 +227,7 @@
     </footer>
 
 
-<div id="profile-modal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50 p-4">
+<div id="profile-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50 p-4">
   <div class="bg-white text-gray-800 rounded-2xl shadow-2xl w-full max-w-lg p-6 relative">
     <button onclick="closeModal('profile-modal')" class="absolute top-3 right-3 text-gray-400 hover:text-gray-700">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -364,7 +319,7 @@
   </div>
 </div>
 <!-- MODAL GAME CENTER -->
-<div id="game-center-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
+<div id="game-center-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
   <div class="bg-white text-gray-800 rounded-2xl shadow-2xl w-full max-w-lg p-6 relative overflow-y-auto max-h-[90vh]">
     <button onclick="closeModal('game-center-modal')" class="absolute top-3 right-3 text-gray-400 hover:text-gray-700 text-2xl font-bold">&times;</button>
     <h2 class="text-2xl font-extrabold text-center mb-4 text-blue-700">🏅 BẢNG VINH DANH</h2>
@@ -400,8 +355,46 @@
     </div>
   </div>
 </div>
+<div id="smart-pen-modal" class="modal-overlay fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="smart-pen-heading">
+  <div class="bg-white text-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl p-6 relative overflow-y-auto max-h-[90vh]">
+    <button onclick="closeModal('smart-pen-modal')" class="absolute top-3 right-3 text-gray-400 hover:text-gray-700">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </button>
+    <section class="info-card" id="smart-pen-card">
+      <div class="info-card__header">
+        <div>
+          <h2 class="info-card__title" id="smart-pen-heading">🖊️ Bút Thông Minh</h2>
+          <p class="info-card__subtitle">Theo dõi thời gian học tập thực sự từ cảm biến chuyển động</p>
+        </div>
+        <button id="smart-pen-refresh" type="button" class="info-card__action">
+          <span class="info-card__action-label">Làm mới</span>
+          <span class="info-card__action-spinner" aria-hidden="true"></span>
+        </button>
+      </div>
+      <div class="smart-pen-status" id="smart-pen-status" role="status" aria-live="polite">Đang chờ dữ liệu...</div>
+      <div class="smart-pen-grid">
+        <div class="smart-pen-stat">
+          <span class="smart-pen-stat__value" id="smart-pen-today">--</span>
+          <span class="smart-pen-stat__label">Thời gian hôm nay</span>
+        </div>
+        <div class="smart-pen-stat">
+          <span class="smart-pen-stat__value" id="smart-pen-total">--</span>
+          <span class="smart-pen-stat__label">Tổng tích lũy</span>
+        </div>
+        <div class="smart-pen-stat">
+          <span class="smart-pen-stat__value" id="smart-pen-last-sync">--</span>
+          <span class="smart-pen-stat__label">Đồng bộ gần nhất</span>
+        </div>
+      </div>
+      <div class="smart-pen-timeline" id="smart-pen-timeline" aria-live="polite"></div>
+      <p class="smart-pen-empty hidden" id="smart-pen-empty">Chưa có dữ liệu nào từ thiết bị. Hãy nhấn nút đồng bộ trên bút để bắt đầu!</p>
+    </section>
+  </div>
+</div>
 
-    <script type="module" src="main.js"></script> 
+    <script type="module" src="main.js"></script>
     
 </body>
 </html>

@@ -95,8 +95,16 @@ export const isYoutubeUrl = (url) => {
 }
 
 export const closeModal = (id) => {
-    document.getElementById(id).classList.add('hidden');
-    document.getElementById(id).classList.remove('flex');
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    modal.classList.remove('grid');
+
+    const trigger = document.querySelector(`[aria-controls='${id}']`);
+    if (trigger) {
+        trigger.setAttribute('aria-expanded', 'false');
+    }
 };
 
 // Gắn vào phạm vi global để sử dụng trong thuộc tính onclick hiện có

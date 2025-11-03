@@ -29,7 +29,7 @@ import {
   getDownloadURL 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
-import { firebaseConfig, getDOMElements, GEMINI_API_KEY, GEMINI_API_URL } from './config.js';
+import { firebaseConfig, getDOMElements, GEMINI_API_KEY, GEMINI_API_URL, closeModal } from './config.js';
 import { setupAuthListeners, getUserId } from './auth.js';
 import { loadPosts, setupVideoListeners } from './video-feed.js';
 
@@ -41,6 +41,18 @@ const SMART_PEN_COLLECTION_PATH = 'Users/UserID_12345/StudyData';
 let smartPenQueryRef = null;
 let smartPenUnsubscribe = null;
 let smartPenStatusTimeout = null;
+
+const registerOverlayDismiss = (id) => {
+  const overlay = document.getElementById(id);
+  if (!overlay) return;
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeModal(id);
+    }
+  });
+};
+
+['post-modal', 'profile-modal', 'game-center-modal', 'smart-pen-modal'].forEach(registerOverlayDismiss);
 
 const toggleSmartPenRefreshLoading = (isLoading) => {
   if (!DOM.smartPenRefreshBtn) return;
@@ -417,12 +429,10 @@ if (gameBtn) {
 // Hàm tính điểm
 function calculateDailyScore(data) {
   const usageMinutes = data.usageMinutesToday || 0;
-  const videosCount = data.videosCount || 0;
-  const lostVideos = data.lostVideos || 0;
+  const videoPoints = data.videoPoints || 0;
   let score = data.baseScore || 0;
   if (usageMinutes <= 45) score += 1; else score -= 1;
-  score += videosCount;
-  score -= lostVideos;
+  score += videoPoints;
   return score;
 }
 
@@ -563,7 +573,7 @@ const searchBox = document.getElementById('search-box');
 const searchInput = document.getElementById('search-input');
 const searchSubmit = document.getElementById('search-submit');
 const smartPenNavBtn = document.getElementById('smart-pen-nav-btn');
-const smartPenCard = document.getElementById('smart-pen-card');
+const smartPenModal = document.getElementById('smart-pen-modal');
 
 // Khi bấm vào nút tìm kiếm — ẩn/hiện khung
 if (searchBtn && searchBox) {
@@ -600,10 +610,14 @@ if (searchSubmit) {
   });
 }
 
-if (smartPenNavBtn && smartPenCard) {
+if (smartPenNavBtn) {
+  smartPenNavBtn.setAttribute('aria-expanded', 'false');
+}
+
+if (smartPenNavBtn && smartPenModal) {
   smartPenNavBtn.addEventListener('click', () => {
-    smartPenCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    smartPenCard.classList.add('smart-pen-highlight');
-    setTimeout(() => smartPenCard.classList.remove('smart-pen-highlight'), 1500);
+    smartPenModal.classList.remove('hidden');
+    smartPenModal.classList.add('flex');
+    smartPenNavBtn.setAttribute('aria-expanded', 'true');
   });
 }

@@ -175,34 +175,27 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
         };
 
         await addDoc(getPostsCollectionRef(), newPost);
-// --- BẮT ĐẦU: Cộng điểm +1 cho người đăng và ghi lịch sử (client timestamp) ---
-try {
-  const userRef = doc(db, 'users', userId);
-  const userSnap = await getDoc(userRef);
 
-  const historyEntry = {
-    date: new Date().toISOString(), // timestamp từ client
-    change: +1,
-    reason: "Đăng video hợp lệ"
-  };
+        try {
+            const userRef = doc(db, 'users', userId);
+            const historyEntry = {
+                date: serverTimestamp(),
+                change: +1,
+                reason: 'Đăng video hợp lệ'
+            };
 
-  if (userSnap && userSnap.exists()) {
-    // nếu doc user đã tồn tại -> update an toàn
-    await updateDoc(userRef, {
-      videosCount: (userSnap.data().videosCount || 0) + 1,
-      scoreHistory: arrayUnion(historyEntry)
-    });
-  } else {
-    // nếu doc user chưa tồn tại -> tạo mới với merge:true
-    await setDoc(userRef, {
-      videosCount: 1,
-      scoreHistory: [historyEntry]
-    }, { merge: true });
-  }
-} catch (err) {
-  console.error("Lỗi khi cập nhật điểm cho user:", err);
-}
-// --- KẾT THÚC: Cộng điểm ---
+            await setDoc(
+                userRef,
+                {
+                    videosCount: increment(1),
+                    videoPoints: increment(1),
+                    scoreHistory: arrayUnion(historyEntry)
+                },
+                { merge: true }
+            );
+        } catch (err) {
+            console.error('Lỗi khi cập nhật điểm cho user:', err);
+        }
 
         DOM.postMessageEl.textContent = "Đăng video thành công!";
         closeModal('post-modal');
@@ -477,50 +470,55 @@ const deleteVideo = async (videoId, videoUrl, isYoutube) => {
     if (!confirm("Bạn có chắc chắn muốn xóa video này không?")) return;
 
     const postRef = doc(deps.db, `artifacts/${firebaseConfig.projectId}/public/data/videos`, videoId);
+    const postSnap = await getDoc(postRef);
+    const uploaderId = postSnap.exists() ? postSnap.data().userId : null;
+
     await deleteDoc(postRef);
-    // ✅ Cập nhật trừ điểm cho người đăng video
-const videoSnap = await getDoc(postRef);
-if (videoSnap.exists()) {
-  const videoData = videoSnap.data();
-  const uploaderId = videoData.userId;
-  if (uploaderId) {
-    const uploaderRef = doc(deps.db, 'users', uploaderId);
-    await updateDoc(uploaderRef, {
-      lostVideos: (videoData.lostVideos || 0) + 1
-    });
-    // Ghi lịch sử điểm
-    const addScoreHistory = async (userId, change, reason = '') => {
-      await updateDoc(doc(deps.db, 'users', userId), {
-        scoreHistory: arrayUnion({
-          date: serverTimestamp(),
-          change,
-          reason
-        })
-      });
-    };
-    await addScoreHistory(uploaderId, -1, 'Video bị xóa hoặc vi phạm');
-  }
-}
 
-// --- BẮT ĐẦU: Ghi lịch sử trừ -1 cho chủ video (client timestamp) ---
-try {
-  // Lấy thông tin post trước đó nếu cần. 
-  // Lưu ý: nếu trước đó đã lấy postSnap, dùng lại; nếu không, bạn có thể pass ownerId vào hàm deleteVideo.
-  // Ở đây chúng ta sẽ giả sử `videoId` còn hợp lệ để truy xuất thông tin chủ video nếu cần.
-  // Nếu bạn đã có ownerId (post.userId) ở caller, thì dùng trực tiếp.
-  const postDocRef = doc(deps.db, `artifacts/${firebaseConfig.projectId}/public/data/videos`, videoId);
-  // NOTE: nếu đã deleteDoc(postRef) thì getDoc(postDocRef) sau đó có thể trả về null.
-  // Do đó tốt nhất là lấy post data TRƯỚC khi deleteDoc — nếu không, bạn cần truyền ownerId vào deleteVideo.
-} catch (e) {
-  console.warn("Không có post data để trừ điểm (nếu post đã bị xóa trước khi lấy owner).", e);
-}
+    if (uploaderId) {
+        try {
+            const uploaderRef = doc(deps.db, 'users', uploaderId);
+            const uploaderSnap = await getDoc(uploaderRef);
+            const uploaderData = uploaderSnap.exists() ? uploaderSnap.data() : {};
 
+            const currentVideos = typeof uploaderData.videosCount === 'number' ? uploaderData.videosCount : 0;
+            const currentLost = typeof uploaderData.lostVideos === 'number' ? uploaderData.lostVideos : 0;
+            const currentVideoPoints = typeof uploaderData.videoPoints === 'number' ? uploaderData.videoPoints : 0;
 
-    if (!isYoutube && videoUrl) {
-        const path = decodeURIComponent(videoUrl.split('/o/')[1].split('?')[0]);
-        const fileRef = ref(deps.storage, path);
-        await deleteObject(fileRef);
+            const historyEntry = {
+                date: serverTimestamp(),
+                change: -1,
+                reason: 'Video bị xóa hoặc vi phạm'
+            };
+
+            await setDoc(
+                uploaderRef,
+                {
+                    videosCount: Math.max(0, currentVideos - 1),
+                    lostVideos: currentLost + 1,
+                    videoPoints: currentVideoPoints - 1,
+                    scoreHistory: arrayUnion(historyEntry)
+                },
+                { merge: true }
+            );
+        } catch (error) {
+            console.error('Lỗi khi trừ điểm cho người đăng:', error);
+        }
     }
+
+    if (!isYoutube && videoUrl && videoUrl.includes('/o/')) {
+        try {
+            const encodedPath = videoUrl.split('/o/')[1]?.split('?')[0];
+            if (encodedPath) {
+                const path = decodeURIComponent(encodedPath);
+                const fileRef = ref(deps.storage, path);
+                await deleteObject(fileRef);
+            }
+        } catch (error) {
+            console.error('Không thể xóa file video trong storage:', error);
+        }
+    }
+
     alert("Đã xóa video thành công!");
 };
 window.deleteVideo = deleteVideo;
