@@ -331,12 +331,12 @@ body {
 }
 
 .video-info-panel {
-  background: rgba(255, 255, 255, 0.92);
+  background: transparent;
   color: #0f172a;
   border-radius: 18px;
   padding: 0.95rem 1.05rem;
-  box-shadow: 0 12px 28px rgba(15, 111, 187, 0.22);
-  backdrop-filter: blur(4px);
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .video-info-title {
