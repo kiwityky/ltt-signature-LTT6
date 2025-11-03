@@ -61,7 +61,16 @@ export const getDOMElements = () => ({
     uploadProgressEl: document.getElementById('upload-progress'),
     sourceUploadRadio: document.getElementById('source-upload'),
     sourceYoutubeRadio: document.getElementById('source-youtube'),
-    
+
+    // Smart Pen dashboard
+    smartPenRefreshBtn: document.getElementById('smart-pen-refresh'),
+    smartPenStatusEl: document.getElementById('smart-pen-status'),
+    smartPenTodayEl: document.getElementById('smart-pen-today'),
+    smartPenTotalEl: document.getElementById('smart-pen-total'),
+    smartPenLastSyncEl: document.getElementById('smart-pen-last-sync'),
+    smartPenTimelineEl: document.getElementById('smart-pen-timeline'),
+    smartPenEmptyEl: document.getElementById('smart-pen-empty'),
+
     // AI Recommend
     recommendBtn: document.getElementById('recommend-btn'),
     recommendLoading: document.getElementById('recommend-loading'),
@@ -88,5 +97,7 @@ export const isYoutubeUrl = (url) => {
 export const closeModal = (id) => {
     document.getElementById(id).classList.add('hidden');
     document.getElementById(id).classList.remove('flex');
-}
-window.closeModal = closeModal; // Export ra global scope để dùng trong onclick
+};
+
+// Gắn vào phạm vi global để sử dụng trong thuộc tính onclick hiện có
+window.closeModal = closeModal;

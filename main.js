@@ -7,16 +7,20 @@ import {
   reauthenticateWithCredential, 
   EmailAuthProvider 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  getDoc, 
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
   getDocs,
-  setDoc, 
-  updateDoc, 
+  setDoc,
+  updateDoc,
   arrayUnion,
-  serverTimestamp
+  serverTimestamp,
+  onSnapshot,
+  query,
+  orderBy,
+  limit
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { 
   getStorage, 
@@ -33,6 +37,194 @@ const DOM = getDOMElements();
 
 let app, db, auth, storage;
 
+const SMART_PEN_COLLECTION_PATH = 'Users/UserID_12345/StudyData';
+let smartPenQueryRef = null;
+let smartPenUnsubscribe = null;
+let smartPenStatusTimeout = null;
+
+const toggleSmartPenRefreshLoading = (isLoading) => {
+  if (!DOM.smartPenRefreshBtn) return;
+  DOM.smartPenRefreshBtn.disabled = Boolean(isLoading);
+  DOM.smartPenRefreshBtn.dataset.loading = isLoading ? 'true' : 'false';
+  DOM.smartPenRefreshBtn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+};
+
+const setSmartPenStatus = (message, revertTo = null, delay = 3200) => {
+  if (!DOM.smartPenStatusEl) return;
+  DOM.smartPenStatusEl.textContent = message;
+  if (smartPenStatusTimeout) {
+    clearTimeout(smartPenStatusTimeout);
+    smartPenStatusTimeout = null;
+  }
+  if (revertTo) {
+    smartPenStatusTimeout = setTimeout(() => {
+      DOM.smartPenStatusEl.textContent = revertTo;
+    }, delay);
+  }
+};
+
+const parseTimestamp = (value) => {
+  if (!value) return null;
+  if (typeof value.toDate === 'function') return value.toDate();
+  if (typeof value === 'object' && typeof value.seconds === 'number') {
+    return new Date(value.seconds * 1000);
+  }
+  if (typeof value === 'number') {
+    return new Date(value);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const formatDuration = (seconds) => {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (total === 0) return '0 phút';
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const parts = [];
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (!hours && secs && parts.length < 1) parts.push(`${secs}s`);
+  return parts.join(' ');
+};
+
+const formatRelativeTime = (date) => {
+  if (!date) return '--';
+  const diff = Date.now() - date.getTime();
+  if (diff < 0) return date.toLocaleString('vi-VN');
+  if (diff < 60 * 1000) return 'Vừa xong';
+  if (diff < 60 * 60 * 1000) {
+    const mins = Math.round(diff / (60 * 1000));
+    return `${mins} phút trước`;
+  }
+  if (diff < 24 * 60 * 60 * 1000) {
+    const hours = Math.round(diff / (60 * 60 * 1000));
+    return `${hours} giờ trước`;
+  }
+  return date.toLocaleString('vi-VN');
+};
+
+const formatTimelineTimestamp = (date) => {
+  if (!date) return 'Không rõ thời gian';
+  const time = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const day = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+  return `${time} · ${day}`;
+};
+
+const buildSmartPenEntries = (docs) => {
+  if (!Array.isArray(docs)) return [];
+  return docs
+    .map((docSnap) => {
+      const data = typeof docSnap.data === 'function' ? docSnap.data() : {};
+      const seconds = Number(data.ActiveTimeSeconds ?? data.activeTimeSeconds ?? 0);
+      const timestamp = parseTimestamp(data.Timestamp ?? data.timestamp);
+      return {
+        id: docSnap.id,
+        seconds: Number.isFinite(seconds) ? seconds : 0,
+        timestamp
+      };
+    })
+    .filter((entry) => entry.seconds >= 0)
+    .sort((a, b) => {
+      const timeA = a.timestamp ? a.timestamp.getTime() : 0;
+      const timeB = b.timestamp ? b.timestamp.getTime() : 0;
+      return timeB - timeA;
+    });
+};
+
+const updateSmartPenView = (entries) => {
+  if (!DOM.smartPenTodayEl || !DOM.smartPenTimelineEl) return false;
+
+  if (!entries.length) {
+    DOM.smartPenTodayEl.textContent = '--';
+    DOM.smartPenTotalEl.textContent = '--';
+    DOM.smartPenLastSyncEl.textContent = '--';
+    DOM.smartPenTimelineEl.innerHTML = '';
+    DOM.smartPenEmptyEl?.classList.remove('hidden');
+    return false;
+  }
+
+  DOM.smartPenEmptyEl?.classList.add('hidden');
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  let todaySeconds = 0;
+  let totalSeconds = 0;
+  let latestTimestamp = null;
+
+  entries.forEach((entry, index) => {
+    totalSeconds += entry.seconds;
+    if (entry.timestamp && entry.timestamp >= todayStart) {
+      todaySeconds += entry.seconds;
+    }
+    if (index === 0 && entry.timestamp) {
+      latestTimestamp = entry.timestamp;
+    }
+  });
+
+  DOM.smartPenTodayEl.textContent = formatDuration(todaySeconds);
+  DOM.smartPenTotalEl.textContent = formatDuration(totalSeconds);
+  DOM.smartPenLastSyncEl.textContent = formatRelativeTime(latestTimestamp);
+
+  DOM.smartPenTimelineEl.innerHTML = '';
+  entries.slice(0, 6).forEach((entry) => {
+    const item = document.createElement('div');
+    item.className = 'smart-pen-timeline__item';
+    item.innerHTML = `
+      <span class="smart-pen-timeline__time">${formatTimelineTimestamp(entry.timestamp)}</span>
+      <span class="smart-pen-timeline__duration">${formatDuration(entry.seconds)}</span>
+    `;
+    DOM.smartPenTimelineEl.appendChild(item);
+  });
+  return true;
+};
+
+const initializeSmartPenListener = () => {
+  if (!db || !DOM.smartPenTimelineEl) return;
+  if (smartPenUnsubscribe) return;
+
+  const colRef = collection(db, SMART_PEN_COLLECTION_PATH);
+  smartPenQueryRef = query(colRef, orderBy('Timestamp', 'desc'), limit(50));
+  setSmartPenStatus('Đang đồng bộ dữ liệu thời gian thực...');
+
+  smartPenUnsubscribe = onSnapshot(
+    smartPenQueryRef,
+    (snapshot) => {
+      const entries = buildSmartPenEntries(snapshot.docs);
+      const hasEntries = updateSmartPenView(entries);
+      setSmartPenStatus(hasEntries ? 'Đồng bộ thời gian thực' : 'Chưa có dữ liệu từ bút.');
+    },
+    (error) => {
+      console.error('Lỗi đồng bộ dữ liệu bút thông minh:', error);
+      setSmartPenStatus('Không thể lấy dữ liệu từ Firebase.');
+    }
+  );
+};
+
+const refreshSmartPenOnce = async () => {
+  if (!smartPenQueryRef) {
+    initializeSmartPenListener();
+    return;
+  }
+
+  toggleSmartPenRefreshLoading(true);
+  setSmartPenStatus('Đang làm mới dữ liệu...', null);
+
+  try {
+    const snapshot = await getDocs(smartPenQueryRef);
+    const entries = buildSmartPenEntries(snapshot.docs);
+    const hasEntries = updateSmartPenView(entries);
+    setSmartPenStatus('Đã làm mới thủ công', hasEntries ? 'Đồng bộ thời gian thực' : 'Chưa có dữ liệu từ bút.');
+  } catch (error) {
+    console.error('Lỗi làm mới dữ liệu bút thông minh:', error);
+    setSmartPenStatus('Không thể làm mới dữ liệu.');
+  } finally {
+    toggleSmartPenRefreshLoading(false);
+  }
+};
+
 try {
   app = initializeApp(firebaseConfig);
   db = getFirestore(app);
@@ -44,6 +236,17 @@ try {
   const getPostsCollectionRef = () => collection(db, `artifacts/${firebaseConfig.projectId}/public/data/videos`);
   setupAuthListeners(auth, DOM, (userId) => loadPosts(db, DOM, getPostsCollectionRef));
   setupVideoListeners(DOM, { db, storage, getPostsCollectionRef, getUserId });
+  initializeSmartPenListener();
+  if (DOM.smartPenRefreshBtn) {
+    toggleSmartPenRefreshLoading(false);
+    DOM.smartPenRefreshBtn.addEventListener('click', refreshSmartPenOnce);
+  }
+  window.addEventListener('beforeunload', () => {
+    if (typeof smartPenUnsubscribe === 'function') {
+      smartPenUnsubscribe();
+      smartPenUnsubscribe = null;
+    }
+  });
 // =============================== NÚT THÊM VIDEO ===============================
 const openPostBtn = document.getElementById('open-post-modal-btn');
 const postModal = document.getElementById('post-modal');
