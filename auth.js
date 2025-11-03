@@ -101,16 +101,17 @@ export const setupAuthListeners = (auth, DOM, loadPostsCallback) => {
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             userId = user.uid;
-            
+
             // THAY THẾ TRẠNG THÁI BẰNG NÚT ĐĂNG XUẤT
+            DOM.authStatusEl.classList.add('auth-status-chip--logged-in');
             DOM.authStatusEl.innerHTML = `
-                <button id="header-logout-btn" 
+                <button id="header-logout-btn"
                         onclick="handleLogout()"
-                        class="text-sm font-bold bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded-lg shadow transition duration-150">
+                        class="logout-btn">
                     Đăng xuất
                 </button>
             `;
-            
+
             DOM.authContainer.classList.add('hidden');
             DOM.videoFeedContainer.style.display = 'block';
             
@@ -120,6 +121,7 @@ export const setupAuthListeners = (auth, DOM, loadPostsCallback) => {
             }
         } else {
             userId = null;
+            DOM.authStatusEl.classList.remove('auth-status-chip--logged-in');
             DOM.authStatusEl.textContent = "Chưa đăng nhập.";
             DOM.authContainer.classList.remove('hidden');
             DOM.videoFeedContainer.style.display = 'none';
