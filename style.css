@@ -61,6 +61,10 @@ body {
   backdrop-filter: blur(6px);
 }
 
+.header-nav {
+  padding: 0.25rem 0.75rem;
+}
+
 .app-header::after {
   content: "";
   position: absolute;
@@ -75,7 +79,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.9rem 1.3rem;
+  padding: 0.65rem 1.1rem;
   gap: 1rem;
   flex-wrap: wrap;
 }
@@ -201,7 +205,7 @@ body {
 
 .brand-title {
   margin: 0;
-  font-size: clamp(1.5rem, 1.8vw + 1rem, 2.2rem);
+  font-size: clamp(1.4rem, 1.6vw + 1rem, 2rem);
   font-weight: 800;
   color: #064a7c;
   display: flex;
@@ -366,7 +370,16 @@ body {
 .video-display {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background-color: #000;
+}
+
+.video-feed-container .video-item video,
+#video-feed-container .video-item video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background-color: #000;
 }
 
 .video-info-wrapper {
@@ -428,9 +441,9 @@ body {
   width: 100%;
 }
 
-.panel-title h2 {
+.panel-title .app-title {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 700;
   color: #0369a1;
 }
@@ -659,7 +672,7 @@ body {
 
 @media (max-width: 767px) {
   .app-header {
-    margin: 0.5rem 0 1rem;
+    margin: 0.35rem 0 0.75rem;
     border-radius: 16px;
     box-shadow: 0 12px 26px rgba(15, 111, 187, 0.18);
   }
@@ -668,9 +681,13 @@ body {
     padding-bottom: 6rem;
   }
 
+  .header-nav {
+    padding: 0.2rem 0.5rem;
+  }
+
   .header-inner {
-    padding: 0.7rem 0.85rem;
-    gap: 0.75rem;
+    padding: 0.45rem 0.75rem;
+    gap: 0.6rem;
   }
 
   .brand-link {
@@ -688,7 +705,7 @@ body {
   }
 
   .brand-title {
-    font-size: clamp(1.35rem, 4.2vw, 1.6rem);
+    font-size: clamp(1.2rem, 4vw, 1.4rem);
   }
 
   .header-actions {
@@ -702,9 +719,9 @@ body {
   }
 
   .header-icon-btn {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
   }
 
   .search-box {
@@ -749,6 +766,14 @@ body {
 
   .video-info-meta {
     font-size: 0.75rem;
+  }
+
+  .panel-title .app-title {
+    font-size: 1.1rem;
+  }
+
+  .panel-subtitle {
+    font-size: 0.85rem;
   }
 
   .info-card {
