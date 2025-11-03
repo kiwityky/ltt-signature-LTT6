@@ -9,6 +9,98 @@ let videoDependencies = null;
 
 let currentActiveMediaElement = null; // Biến trạng thái để theo dõi media đang phát
 
+let feedContainerRef = null;
+let fullscreenChangeRegistered = false;
+
+const isFeedInFullscreen = () => {
+    if (!feedContainerRef) return false;
+    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+    return fullscreenElement === feedContainerRef;
+};
+
+const exitFeedFullscreen = () => {
+    if (document.exitFullscreen) return document.exitFullscreen();
+    if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
+    if (document.msExitFullscreen) return document.msExitFullscreen();
+    return Promise.resolve();
+};
+
+const updateFullscreenVisualState = () => {
+    if (!feedContainerRef) return;
+    const isActive = isFeedInFullscreen();
+    feedContainerRef.classList.toggle('is-fullscreen', isActive);
+    feedContainerRef.dataset.fullscreen = isActive ? 'true' : 'false';
+    document.body.classList.toggle('feed-fullscreen-active', isActive);
+
+    const fullscreenButtons = feedContainerRef.querySelectorAll('.fullscreen-btn');
+    fullscreenButtons.forEach((btn) => {
+        btn.dataset.state = isActive ? 'on' : 'off';
+        const label = isActive ? 'Thoát toàn màn hình' : 'Xem toàn màn hình';
+        btn.setAttribute('aria-label', label);
+        btn.setAttribute('title', label);
+    });
+
+    const fullscreenIcons = feedContainerRef.querySelectorAll('.fullscreen-icon');
+    fullscreenIcons.forEach((icon) => {
+        icon.textContent = isActive ? '🗗' : '⛶';
+    });
+};
+
+const ensureFullscreenListeners = (DOM) => {
+    if (!DOM?.videoFeedContainer) return;
+    feedContainerRef = DOM.videoFeedContainer;
+    if (fullscreenChangeRegistered) return;
+
+    const handleChange = () => {
+        updateFullscreenVisualState();
+    };
+
+    ['fullscreenchange', 'webkitfullscreenchange', 'msfullscreenchange'].forEach((evt) => {
+        document.addEventListener(evt, handleChange);
+    });
+
+    document.addEventListener('fullscreenerror', () => {
+        setTimeout(updateFullscreenVisualState, 0);
+    });
+
+    fullscreenChangeRegistered = true;
+};
+
+const toggleFeedFullscreen = (postElement) => {
+    if (!feedContainerRef) return;
+    if (isFeedInFullscreen()) {
+        const exitResult = exitFeedFullscreen();
+        if (exitResult && typeof exitResult.then === 'function') {
+            exitResult.finally(() => updateFullscreenVisualState());
+        } else {
+            setTimeout(updateFullscreenVisualState, 60);
+        }
+        return;
+    }
+
+    const request =
+        feedContainerRef.requestFullscreen ||
+        feedContainerRef.webkitRequestFullscreen ||
+        feedContainerRef.msRequestFullscreen;
+
+    if (typeof request !== 'function') return;
+
+    const maybePromise = request.call(feedContainerRef);
+
+    const afterEnter = () => {
+        updateFullscreenVisualState();
+        if (postElement) {
+            postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    };
+
+    if (maybePromise && typeof maybePromise.then === 'function') {
+        maybePromise.then(afterEnter).catch(() => updateFullscreenVisualState());
+    } else {
+        setTimeout(afterEnter, 60);
+    }
+};
+
 // --- LOGIC XỬ LÝ POST VIDEO ---
 
 const handlePostSubmit = async (e, userId, db, storage, DOM, getPostsCollectionRef) => {
@@ -183,6 +275,9 @@ window.togglePlayPause = togglePlayPause;
 // --- HIỂN THỊ VIDEO ---
 
 const renderVideoFeed = (posts, DOM) => {
+    ensureFullscreenListeners(DOM);
+    updateFullscreenVisualState();
+
     DOM.videoFeedContainer.innerHTML = '';
     if (posts.length === 0) {
         DOM.videoFeedContainer.appendChild(DOM.loadingFeedEl);
@@ -242,6 +337,9 @@ const renderVideoFeed = (posts, DOM) => {
                     <img class="share-icon h-6 w-6" src="${SHARE_ICON_PATH}">
                 </button>
                 <p class="share-count">${shareCountText}</p>
+                <button class="ctrl-btn fullscreen-btn" type="button" aria-label="Xem toàn màn hình" title="Xem toàn màn hình" data-state="off">
+                    <span class="fullscreen-icon" aria-hidden="true">⛶</span>
+                </button>
             </div>
         `;
 
@@ -252,6 +350,14 @@ const renderVideoFeed = (posts, DOM) => {
         const shareBtnEl = postElement.querySelector('.share-btn');
         if (likeBtnEl) likeBtnEl.addEventListener('click', e => { e.stopPropagation(); handleLike(post.id); });
         if (shareBtnEl) shareBtnEl.addEventListener('click', e => { e.stopPropagation(); handleShare(post.id, post.videoUrl); });
+
+        const fullscreenBtn = postElement.querySelector('.fullscreen-btn');
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                toggleFeedFullscreen(postElement);
+            });
+        }
 
         // ✅ Thêm nút xóa (chỉ admin)
         const currentUserId2 = videoDependencies?.getUserId?.();
@@ -276,6 +382,7 @@ const renderVideoFeed = (posts, DOM) => {
 
     DOM.videoFeedContainer.prepend(DOM.loadingFeedEl);
     handleVideoScrolling(DOM);
+    updateFullscreenVisualState();
 };
 
 const handleVideoScrolling = (DOM) => {
