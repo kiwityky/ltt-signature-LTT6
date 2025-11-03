@@ -318,11 +318,11 @@ const renderVideoFeed = (posts, DOM) => {
         postElement.innerHTML = `
             ${mediaHtml}
             ${playPauseOverlayHtml}
-            <div class="absolute bottom-16 left-0 right-0 p-4 text-white z-10">
-                <div class="bg-black bg-opacity-0 p-3 rounded-lg">
-                    <h4 class="font-bold text-lg">${post.title}</h4>
-                    <p class="text-sm mt-1">${post.description}</p>
-                    <p class="text-xs text-gray-300 mt-2">@${post.username || formatUserId(post.userId)} - Nguồn: ${post.isYoutube ? 'YouTube' : 'Upload'}</p>
+            <div class="absolute left-0 right-0 px-4 z-10 video-info-wrapper">
+                <div class="video-info-panel">
+                    <h4 class="video-info-title">${post.title}</h4>
+                    <p class="video-info-description">${post.description}</p>
+                    <p class="video-info-meta">@${post.username || formatUserId(post.userId)} · Nguồn: ${post.isYoutube ? 'YouTube' : 'Upload'}</p>
                 </div>
             </div>
             <div class="video-controls">

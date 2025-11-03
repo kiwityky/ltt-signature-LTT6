@@ -325,6 +325,40 @@ body {
   object-fit: contain;
 }
 
+.video-info-wrapper {
+  pointer-events: none;
+  bottom: 4rem;
+}
+
+.video-info-panel {
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  border-radius: 18px;
+  padding: 0.95rem 1.05rem;
+  box-shadow: 0 12px 28px rgba(15, 111, 187, 0.22);
+  backdrop-filter: blur(4px);
+}
+
+.video-info-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.video-info-description {
+  margin: 0.45rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #1f2937;
+}
+
+.video-info-meta {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: #475569;
+}
+
 /* ===========================
    BỐ CỤC ỨNG DỤNG
 =========================== */
@@ -579,21 +613,43 @@ body {
 }
 
 @media (max-width: 767px) {
+  .app-header {
+    margin: 0.5rem 0 1rem;
+    border-radius: 16px;
+    box-shadow: 0 12px 26px rgba(15, 111, 187, 0.18);
+  }
+
   .app-shell {
     padding-bottom: 6rem;
   }
 
   .header-inner {
-    padding: 0.8rem 1.05rem;
+    padding: 0.7rem 0.85rem;
+    gap: 0.75rem;
   }
 
   .brand-link {
     padding: 0.35rem;
   }
 
+  .brand-block {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .brand-logo {
+    width: 42px;
+    height: 42px;
+  }
+
+  .brand-title {
+    font-size: clamp(1.35rem, 4.2vw, 1.6rem);
+  }
+
   .header-actions {
     width: 100%;
     justify-content: space-between;
+    gap: 0.75rem;
   }
 
   .search-wrapper {
@@ -603,6 +659,12 @@ body {
     justify-content: flex-end;
   }
 
+  .header-icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
   .search-box {
     width: min(100%, 320px);
     right: 0;
@@ -610,11 +672,85 @@ body {
 
   .auth-status-chip {
     width: 100%;
+    font-size: 0.65rem;
+    padding: 0.45rem 0.75rem;
+  }
+
+  .logout-btn {
+    padding: 0.35rem 0.9rem;
+    font-size: 0.72rem;
   }
 
   #video-feed-container {
     height: auto;
     max-height: none;
+  }
+
+  .video-snap-item {
+    margin: 0.75rem;
+    border-radius: 20px;
+  }
+
+  .video-info-panel {
+    padding: 0.85rem;
+  }
+
+  .video-info-wrapper {
+    bottom: 1.75rem;
+  }
+
+  .video-info-title {
+    font-size: 1rem;
+  }
+
+  .video-info-description {
+    font-size: 0.9rem;
+  }
+
+  .video-info-meta {
+    font-size: 0.75rem;
+  }
+
+  .info-card {
+    padding: 1.25rem;
+    gap: 1rem;
+  }
+
+  .info-card__title {
+    font-size: 1.2rem;
+  }
+
+  .info-card__subtitle {
+    font-size: 0.9rem;
+  }
+
+  .tips-list {
+    font-size: 0.9rem;
+  }
+
+  .video-controls {
+    top: auto;
+    bottom: 12px;
+    right: 12px;
+    transform: none;
+    flex-direction: row;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 0.4rem 0.65rem;
+    border-radius: 999px;
+    box-shadow: 0 10px 20px rgba(15, 111, 187, 0.2);
+  }
+
+  .ctrl-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .like-count,
+  .share-count {
+    color: #0f172a;
+    text-shadow: none;
+    font-weight: 600;
   }
 
   .smart-pen-grid {
@@ -655,6 +791,19 @@ body {
     width: min(96%, 360px);
     padding: 0.5rem 0.85rem;
     bottom: 0.35rem;
+  }
+
+  .video-info-panel {
+    padding: 0.75rem;
+    border-radius: 16px;
+  }
+
+  .video-info-wrapper {
+    bottom: 1.4rem;
+  }
+
+  .video-controls {
+    right: 10px;
   }
 }
 

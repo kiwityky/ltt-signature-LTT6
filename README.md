@@ -117,10 +117,10 @@ firebase deploy
 **Dự án:** *LTT Signature — Ứng dụng học tập video ngắn cho học sinh THCS Lý Thánh Tông*
 **Trường:** THCS Lý Thánh Tông, TP. Hồ Chí Minh  
 **Hướng dẫn:** Phòng Thí Nghiệm STEM – Lý Thánh Tông Lab  
-**Nhóm phát triển:** LTT5  
+**Nhóm phát triển:** LTT6
 
 ---
 
 ## 📄 Giấy phép
-Dự án được phát hành cho mục đích **nghiên cứu và giáo dục phi thương mại**.  
-Mọi quyền khác thuộc về nhóm phát triển LTT5.
+Dự án được phát hành cho mục đích **nghiên cứu và giáo dục phi thương mại**.
+Mọi quyền khác thuộc về nhóm phát triển LTT6.
