@@ -562,12 +562,16 @@ const searchBtn = document.getElementById('search-btn');
 const searchBox = document.getElementById('search-box');
 const searchInput = document.getElementById('search-input');
 const searchSubmit = document.getElementById('search-submit');
+const smartPenNavBtn = document.getElementById('smart-pen-nav-btn');
+const smartPenCard = document.getElementById('smart-pen-card');
 
 // Khi bấm vào nút tìm kiếm — ẩn/hiện khung
 if (searchBtn && searchBox) {
   searchBtn.addEventListener('click', () => {
-    searchBox.classList.toggle('hidden');
-    if (!searchBox.classList.contains('hidden')) {
+    const isHidden = searchBox.classList.toggle('hidden');
+    const expanded = !isHidden;
+    searchBtn.setAttribute('aria-expanded', expanded.toString());
+    if (expanded) {
       searchInput.focus();
     }
   });
@@ -593,5 +597,13 @@ if (searchSubmit) {
     });
 
     if (!found) alert('Không tìm thấy video nào phù hợp.');
+  });
+}
+
+if (smartPenNavBtn && smartPenCard) {
+  smartPenNavBtn.addEventListener('click', () => {
+    smartPenCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    smartPenCard.classList.add('smart-pen-highlight');
+    setTimeout(() => smartPenCard.classList.remove('smart-pen-highlight'), 1500);
   });
 }

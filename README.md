@@ -1,6 +1,6 @@
-# 🌻 LTTFine — Nền tảng Video Học Tập Dạng Shorts
+# 🌻 LTT Signature — Nền tảng Video Học Tập Dạng Shorts
 
-**LTTFine** là một ứng dụng web học tập tương tác dành cho học sinh, lấy cảm hứng từ nền tảng TikTok, kết hợp giữa **học qua video ngắn**, **trò chơi mini**, và **trợ lý AI học tập**.  
+**LTT Signature** là một ứng dụng web học tập tương tác dành cho học sinh, lấy cảm hứng từ nền tảng TikTok, kết hợp giữa **học qua video ngắn**, **trò chơi mini**, và **trợ lý AI học tập**.
 Ứng dụng được phát triển bởi nhóm học sinh Trường **THCS Lý Thánh Tông**, sử dụng **Firebase**, **TailwindCSS**, và **Google Gemini API**.
 
 ---
@@ -42,7 +42,7 @@
 ## 🧩 Kiến trúc hệ thống
 
 ```
-📂 LTTFine/
+📂 LTT Signature/
 ├── index.html          # Trang chính: video feed, AI chatbox, profile, leaderboard
 ├── game.html           # Mini game "Phi Âm"
 ├── style.css           # Giao diện tổng thể
@@ -73,8 +73,8 @@
 
 ### 1. Clone dự án
 ```bash
-git clone https://github.com/<your-username>/LTTFine.git
-cd LTTFine
+git clone https://github.com/<your-username>/LTTSignature.git
+cd LTTSignature
 ```
 
 ### 2. Cập nhật khóa API
@@ -114,7 +114,7 @@ firebase deploy
 ---
 
 ## 👥 Nhóm thực hiện
-**Dự án:** *LTTFine — Ứng dụng học tập video ngắn cho học sinh THCS Lý Thánh Tông*  
+**Dự án:** *LTT Signature — Ứng dụng học tập video ngắn cho học sinh THCS Lý Thánh Tông*
 **Trường:** THCS Lý Thánh Tông, TP. Hồ Chí Minh  
 **Hướng dẫn:** Phòng Thí Nghiệm STEM – Lý Thánh Tông Lab  
 **Nhóm phát triển:** LTT5  

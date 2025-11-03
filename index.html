@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LTT5 Shorts - Nền Tảng Video Học Tập</title>
+    <title>LTT Signature Shorts - Nền Tảng Video Học Tập</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -18,10 +18,24 @@
                     </a>
                     <h1 class="brand-title">
                         LTT
-                        <span id="sunflower-btn" class="brand-subtitle">🌻Fine</span>
+                        <span id="sunflower-btn" class="brand-subtitle">🌻Signature</span>
                     </h1>
                 </div>
-                <div id="auth-status" class="auth-status-chip">Đang tải...</div>
+                <div class="header-actions">
+                    <div class="search-wrapper">
+                        <button id="search-btn" class="header-icon-btn" aria-haspopup="true" aria-expanded="false" aria-controls="search-box" title="Tìm kiếm video">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                        </button>
+                        <div id="search-box" class="search-box hidden" role="dialog" aria-label="Tìm kiếm video">
+                            <input id="search-input" type="text" placeholder="Tìm kiếm video..." class="search-input">
+                            <button id="search-submit" class="search-submit">TÌM</button>
+                        </div>
+                    </div>
+                    <div id="auth-status" class="auth-status-chip">Đang tải...</div>
+                </div>
             </div>
         </header>
 
@@ -85,8 +99,8 @@
         <div id="auth-container" class="video-card p-6 mb-8 fixed inset-0 z-30 bg-white hidden">
             <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">Đăng Nhập/Đăng Ký</h2>
             <form id="login-form" class="space-y-4 max-w-sm mx-auto mt-10">
-                <input type="email" id="auth-email" placeholder="Email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500" required>
-                <input type="password" id="auth-password" placeholder="Mật khẩu (tối thiểu 6 ký tự)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500" required>
+                <input type="email" id="auth-email" placeholder="Email" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-sky-400 focus:border-sky-400" required>
+                <input type="password" id="auth-password" placeholder="Mật khẩu (tối thiểu 6 ký tự)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-sky-400 focus:border-sky-400" required>
                 <div class="flex flex-col space-y-2 md:flex-row md:space-x-4 md:space-y-0">
                     <button type="submit" id="login-btn" class="btn-primary flex-1">
                         <span>Đăng Nhập</span>
@@ -106,7 +120,7 @@
     <div id="post-modal" class="fixed inset-0 bg-black bg-opacity-70 hidden items-center justify-center p-4 z-50">
   <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg transform transition-all">
     <div class="flex justify-between items-center border-b pb-3 mb-4">
-      <h3 class="text-xl font-bold text-slate-700">Đăng Video Mới</h3>
+      <h3 class="text-xl font-bold text-sky-800">Đăng Video Mới</h3>
       <button onclick="closeModal('post-modal')" class="text-gray-400 hover:text-gray-600">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -151,7 +165,7 @@
         type="text"
         id="post-title"
         placeholder="Tiêu đề video (Tối đa 50 ký tự)"
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500"
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-sky-400 focus:border-sky-400"
         maxlength="50"
         required
       >
@@ -160,7 +174,7 @@
         id="post-description"
         placeholder="Mô tả hoặc nội dung chính (Tối đa 100 ký tự)"
         rows="2"
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500"
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-sky-400 focus:border-sky-400"
         maxlength="100"
         required
       ></textarea>
@@ -168,12 +182,12 @@
       <div class="flex items-center space-x-4 border p-3 rounded-lg bg-gray-50">
         <label class="font-medium text-gray-700">Chọn nguồn:</label>
         <div class="flex items-center">
-          <input id="source-upload" type="radio" name="video_source" value="upload" checked class="h-4 w-4 text-slate-600 border-gray-300">
-          <label for="source-upload" class="ml-2 text-sm text-gray-700">Tải File lên</label>
+          <input id="source-upload" type="radio" name="video_source" value="upload" checked class="h-4 w-4 text-sky-600 border-gray-300">
+          <label for="source-upload" class="ml-2 text-sm text-sky-700">Tải File lên</label>
         </div>
         <div class="flex items-center">
-          <input id="source-youtube" type="radio" name="video_source" value="youtube" class="h-4 w-4 text-slate-600 border-gray-300">
-          <label for="source-youtube" class="ml-2 text-sm text-gray-700">Link YouTube</label>
+          <input id="source-youtube" type="radio" name="video_source" value="youtube" class="h-4 w-4 text-sky-600 border-gray-300">
+          <label for="source-youtube" class="ml-2 text-sm text-sky-700">Link YouTube</label>
         </div>
       </div>
 
@@ -181,14 +195,14 @@
         type="file"
         id="post-file"
         accept="video/*"
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500"
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-sky-400 focus:border-sky-400"
       >
 
       <input
         type="url"
         id="post-url"
         placeholder="Dán URL Video YouTube công khai"
-        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-slate-500 focus:border-slate-500 hidden"
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-sky-400 focus:border-sky-400 hidden"
       >
 
       <button
@@ -203,7 +217,7 @@
       <p id="post-message" class="text-sm text-center text-red-500"></p>
 
       <div id="upload-progress-container" class="w-full bg-gray-200 rounded-full h-2.5 hidden">
-        <div id="upload-progress" class="bg-slate-600 h-2.5 rounded-full" style="width: 0%"></div>
+        <div id="upload-progress" class="bg-sky-500 h-2.5 rounded-full" style="width: 0%"></div>
       </div>
     </form>
   </div>
@@ -214,58 +228,45 @@
     <nav id="bottom-nav" class="p-3 flex justify-around items-center max-w-4xl mx-auto" aria-label="Thanh điều hướng">
   <!-- Nút Trang chủ -->
   <button onclick="window.location.reload();"
-          class="text-gray-500 hover:text-slate-600 transition duration-150 p-2">
+          class="text-sky-700 hover:text-sky-800 transition duration-150 p-2">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6" />
     </svg>
   </button>
 
   <!-- Nút Game -->
-<button id="open-game-btn" class="text-gray-500 hover:text-slate-600 transition duration-150 p-2">
+<button id="open-game-btn" class="text-sky-700 hover:text-sky-800 transition duration-150 p-2">
   <img src="svg/game.svg" alt="Game" class="h-6 w-6">
 </button>
 
 
   <!-- Nút Thêm video -->
-  <button id="open-post-modal-btn" 
-          class="bg-slate-600 hover:bg-slate-700 text-white p-4 rounded-full shadow-xl transform transition duration-150 scale-105">
+  <button id="open-post-modal-btn"
+          class="bg-sky-500 hover:bg-sky-600 text-white p-4 rounded-full shadow-xl transform transition duration-150 scale-105">
     <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-      <path fill-rule="evenodd" 
-            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" 
+      <path fill-rule="evenodd"
+            d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z"
             clip-rule="evenodd" />
     </svg>
   </button>
 
-  <!-- Nút Tìm kiếm -->
-  <button id="search-btn" class="text-gray-500 hover:text-slate-600 transition duration-150 p-2">
-    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  <!-- Nút Bút Thông Minh -->
+  <button id="smart-pen-nav-btn" class="text-sky-700 hover:text-sky-800 transition duration-150 p-2" title="Bút thông minh">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
     </svg>
   </button>
 
   <!-- Nút Hồ sơ người dùng -->
-  <button id="open-profile-btn" class="text-gray-500 hover:text-slate-600 transition duration-150 p-2">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" 
+  <button id="open-profile-btn" class="text-sky-700 hover:text-sky-800 transition duration-150 p-2">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-6 w-6">
       <circle cx="12" cy="8" r="4" />
       <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
     </svg>
   </button>
-
-  <!-- Ô tìm kiếm (ẩn ban đầu) -->
-  <div id="search-box"
-       class="hidden absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-white text-gray-800 rounded-xl shadow-lg p-3 w-80">
-    <input id="search-input" type="text" placeholder="Tìm kiếm video..."
-           class="w-full p-2 border rounded-md focus:ring focus:ring-blue-300">
-    <button id="search-submit"
-        class="mt-2 w-full py-2 rounded-lg font-bold text-black bg-[#b8c6e0] hover:bg-[#a3b4d6]
-               active:scale-95 border border-[#0b1733] shadow-sm transition-all duration-200">
-  TÌM
-</button>
-
-  </div>
 
     </nav>
     </footer>
@@ -352,7 +353,7 @@
 <!-- CHATBOX AI GEMINI -->
 <div id="ai-chatbox" class="fixed bottom-20 right-5 w-80 bg-white text-gray-800 rounded-2xl shadow-2xl hidden flex-col overflow-hidden border border-gray-300 z-50">
   <div class="bg-gradient-to-r from-sky-500 to-indigo-600 text-white px-4 py-3 flex justify-between items-center">
-    <span class="font-semibold">Trợ lý 🌻Fine</span>
+    <span class="font-semibold">Trợ lý 🌻Signature</span>
     <button id="close-ai-chat" class="text-white text-xl font-bold">&times;</button>
   </div>
   <div id="ai-messages" class="flex-1 p-3 space-y-2 overflow-y-auto h-72 bg-gray-50"></div>
