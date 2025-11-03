@@ -37,6 +37,42 @@ const DOM = getDOMElements();
 
 let app, db, auth, storage;
 
+const layoutRoot = document.documentElement;
+const headerEl = document.querySelector('.app-header');
+const bottomNavEl = document.getElementById('bottom-nav');
+
+const recalcViewportHeights = () => {
+  if (!layoutRoot) return;
+  const headerRect = headerEl?.getBoundingClientRect();
+  const headerHeight = headerRect ? headerRect.height : 0;
+  let footerHeight = 0;
+  if (bottomNavEl) {
+    const navRect = bottomNavEl.getBoundingClientRect();
+    footerHeight = Math.max(0, window.innerHeight - navRect.top);
+  }
+  const availableHeight = Math.max(window.innerHeight - headerHeight - footerHeight, 320);
+  layoutRoot.style.setProperty('--header-height', `${Math.round(headerHeight)}px`);
+  layoutRoot.style.setProperty('--footer-height', `${Math.round(footerHeight)}px`);
+  layoutRoot.style.setProperty('--available-feed-height', `${availableHeight}px`);
+};
+
+if (typeof ResizeObserver === 'function') {
+  const layoutObserver = new ResizeObserver(() => recalcViewportHeights());
+  if (headerEl) layoutObserver.observe(headerEl);
+  if (bottomNavEl) layoutObserver.observe(bottomNavEl);
+}
+
+['resize', 'orientationchange'].forEach((eventName) => {
+  window.addEventListener(eventName, recalcViewportHeights, { passive: true });
+});
+
+window.addEventListener('load', () => {
+  recalcViewportHeights();
+  setTimeout(recalcViewportHeights, 200);
+});
+
+recalcViewportHeights();
+
 const SMART_PEN_COLLECTION_PATH = 'Users/UserID_12345/StudyData';
 let smartPenQueryRef = null;
 let smartPenUnsubscribe = null;

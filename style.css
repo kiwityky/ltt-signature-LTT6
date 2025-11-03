@@ -17,6 +17,9 @@
   --sky-mid: #bde7ff;
   --sky-bright: #87cefa;
   --text-dark: #0b2540;
+  --header-height: 0px;
+  --footer-height: 0px;
+  --available-feed-height: 70vh;
 }
 
 /* ===========================
@@ -41,9 +44,29 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0 1rem 5rem;
+  flex: 1 1 auto;
+  padding: 0 1rem calc(var(--footer-height) + 2.5rem);
   margin: 0 auto;
   gap: 1.25rem;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.feed-column {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-height: 0;
+}
+
+.panel-title {
+  flex-shrink: 0;
 }
 
 /* ===========================
@@ -53,16 +76,16 @@ body {
   position: sticky;
   top: 0;
   z-index: 30;
-  margin: 0.75rem 0 1.5rem;
+  margin: 0.5rem 0 1rem;
   border-radius: 20px;
   background: linear-gradient(135deg, rgba(224, 245, 255, 0.95) 0%, rgba(173, 226, 255, 0.95) 45%, rgba(94, 195, 255, 0.95) 100%);
   border: 1px solid rgba(14, 165, 233, 0.35);
-  box-shadow: 0 20px 38px rgba(15, 111, 187, 0.22);
+  box-shadow: 0 16px 32px rgba(15, 111, 187, 0.2);
   backdrop-filter: blur(6px);
 }
 
 .header-nav {
-  padding: 0.25rem 0.75rem;
+  padding: 0.15rem 0.75rem;
 }
 
 .app-header::after {
@@ -79,7 +102,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.65rem 1.1rem;
+  padding: 0.4rem 0.9rem;
   gap: 1rem;
   flex-wrap: wrap;
 }
@@ -185,7 +208,7 @@ body {
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.92);
-  padding: 0.4rem;
+  padding: 0.35rem;
   border-radius: 16px;
   box-shadow: 0 14px 26px rgba(14, 165, 233, 0.22);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
@@ -197,8 +220,8 @@ body {
 }
 
 .brand-logo {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
   border-radius: 12px;
 }
@@ -306,8 +329,10 @@ body {
 #video-feed-container {
   width: 100%;
   max-width: 480px;
-  height: 100vh;
-  max-height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: var(--available-feed-height);
+  max-height: var(--available-feed-height);
   margin: 0 auto;
   background: rgba(15, 23, 42, 0.85);
   border-radius: 32px;
@@ -325,16 +350,20 @@ body {
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   overscroll-behavior-y: contain;
+  scroll-padding-bottom: calc(var(--footer-height) + 1rem);
 }
 
 .video-feed-container {
-  height: 100vh;
-  max-height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: var(--available-feed-height);
+  max-height: var(--available-feed-height);
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   overscroll-behavior-y: contain;
+  scroll-padding-bottom: calc(var(--footer-height) + 1rem);
 }
 
 @media (max-width: 640px) {
@@ -354,7 +383,9 @@ body {
 #video-feed-container .video-snap-item {
   scroll-snap-align: start;
   scroll-snap-stop: always;
-  min-height: 100vh;
+  min-height: var(--available-feed-height, 100vh);
+  height: var(--available-feed-height, 100vh);
+  max-height: var(--available-feed-height, 100vh);
   width: 100%;
   max-width: none;
   background-color: #000;
@@ -637,18 +668,17 @@ body {
 
 @media (min-width: 640px) {
   .app-shell {
-    padding: 0 1.5rem 5rem;
+    padding: 0 1.5rem calc(var(--footer-height) + 2.5rem);
   }
 
   #video-feed-container {
     max-width: 480px;
-    height: 100vh;
   }
 }
 
 @media (min-width: 768px) {
   .app-shell {
-    padding: 0 2rem 4rem;
+    padding: 0 2rem calc(var(--footer-height) + 2.5rem);
   }
 
   .app-main {
@@ -660,7 +690,6 @@ body {
 
   #video-feed-container {
     max-width: 480px;
-    height: 100vh;
   }
 }
 
@@ -678,20 +707,20 @@ body {
   }
 
   .app-shell {
-    padding-bottom: 6rem;
+    padding-bottom: calc(var(--footer-height) + 3.5rem);
   }
 
   .header-nav {
-    padding: 0.2rem 0.5rem;
+    padding: 0.1rem 0.5rem;
   }
 
   .header-inner {
-    padding: 0.45rem 0.75rem;
+    padding: 0.35rem 0.75rem;
     gap: 0.6rem;
   }
 
   .brand-link {
-    padding: 0.35rem;
+    padding: 0.3rem;
   }
 
   .brand-block {
@@ -700,8 +729,8 @@ body {
   }
 
   .brand-logo {
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
   }
 
   .brand-title {
@@ -828,7 +857,7 @@ body {
   }
 
   #bottom-nav {
-    bottom: 0.4rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.4rem);
     gap: 0.65rem;
   }
 }
@@ -855,7 +884,7 @@ body {
   #bottom-nav {
     width: min(96%, 360px);
     padding: 0.5rem 0.85rem;
-    bottom: 0.35rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.35rem);
   }
 
   .video-info-panel {
@@ -882,16 +911,12 @@ body {
     gap: 3rem;
   }
 
-  #video-feed-container {
-    height: 100vh;
-  }
-
   #bottom-nav {
     width: min(100%, 680px);
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    bottom: 0.75rem;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
     border-radius: 28px 28px 0 0;
     padding: 0.65rem 2.25rem;
     justify-content: space-between;
@@ -945,7 +970,7 @@ body {
 =========================== */
 #bottom-nav {
   position: fixed;
-  bottom: 0.5rem;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem);
   left: 50%;
   transform: translateX(-50%);
   width: min(92%, 420px);
