@@ -623,6 +623,29 @@ if (searchBtn && searchBox) {
   });
 }
 
+if (searchBox) {
+  document.addEventListener('click', (event) => {
+    if (searchBox.classList.contains('hidden')) return;
+    const target = event.target;
+    if ((searchBtn && (searchBtn === target || searchBtn.contains(target))) || searchBox.contains(target)) {
+      return;
+    }
+    searchBox.classList.add('hidden');
+    if (searchBtn) {
+      searchBtn.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || searchBox.classList.contains('hidden')) return;
+    searchBox.classList.add('hidden');
+    if (searchBtn) {
+      searchBtn.setAttribute('aria-expanded', 'false');
+      searchBtn.focus();
+    }
+  });
+}
+
 // Khi bấm nút TÌM
 if (searchSubmit) {
   searchSubmit.addEventListener('click', () => {

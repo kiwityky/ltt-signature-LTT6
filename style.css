@@ -58,15 +58,13 @@ body {
 }
 
 .feed-column {
+  width: 100%;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  align-items: center;
+  gap: 1rem;
   min-height: 0;
-}
-
-.panel-title {
-  flex-shrink: 0;
 }
 
 /* ===========================
@@ -103,17 +101,19 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 0.4rem 0.9rem;
-  gap: 1rem;
+  gap: 0.9rem;
   flex-wrap: wrap;
 }
 
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
   flex-wrap: nowrap;
   justify-content: flex-end;
   min-width: 0;
+  margin-left: auto;
+  flex: 0 1 auto;
 }
 
 .header-actions > * {
@@ -150,7 +150,7 @@ body {
   position: absolute;
   top: calc(100% + 0.75rem);
   right: 0;
-  width: min(320px, 80vw);
+  width: min(360px, 85vw);
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
@@ -200,7 +200,9 @@ body {
 .brand-block {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .brand-link {
@@ -454,35 +456,9 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2.5rem;
-  flex: 1;
-  padding-bottom: 4rem;
-}
-
-.feed-column {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 1.5rem;
-}
-
-.panel-title {
-  text-align: center;
-  width: 100%;
-}
-
-.panel-title .app-title {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 700;
-  color: #0369a1;
-}
-
-.panel-subtitle {
-  margin: 0.25rem 0 0;
-  color: rgba(7, 89, 133, 0.75);
-  font-size: 0.95rem;
+  flex: 1;
+  padding-bottom: 3.25rem;
 }
 
 .info-card {
@@ -685,7 +661,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3rem;
+    gap: 2rem;
   }
 
   #video-feed-container {
@@ -715,8 +691,9 @@ body {
   }
 
   .header-inner {
-    padding: 0.35rem 0.75rem;
-    gap: 0.6rem;
+    padding: 0.35rem 0.6rem;
+    gap: 0.55rem;
+    flex-wrap: nowrap;
   }
 
   .brand-link {
@@ -724,8 +701,9 @@ body {
   }
 
   .brand-block {
-    width: 100%;
-    justify-content: space-between;
+    flex: 1 1 auto;
+    justify-content: flex-start;
+    gap: 0.6rem;
   }
 
   .brand-logo {
@@ -738,9 +716,9 @@ body {
   }
 
   .header-actions {
-    width: auto;
+    flex: 0 1 auto;
     justify-content: flex-end;
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
 
   .search-wrapper {
@@ -754,14 +732,17 @@ body {
   }
 
   .search-box {
-    width: min(100%, 320px);
+    width: min(360px, 92vw);
     right: 0;
   }
 
   .auth-status-chip {
-    width: auto;
+    max-width: min(180px, 55vw);
     font-size: 0.65rem;
     padding: 0.45rem 0.75rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .logout-btn {
@@ -795,14 +776,6 @@ body {
 
   .video-info-meta {
     font-size: 0.75rem;
-  }
-
-  .panel-title .app-title {
-    font-size: 1.1rem;
-  }
-
-  .panel-subtitle {
-    font-size: 0.85rem;
   }
 
   .info-card {
@@ -868,6 +841,20 @@ body {
     padding-right: 0.75rem;
   }
 
+  .header-inner {
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .brand-block {
+    flex: 1 1 100%;
+  }
+
+  .header-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+
   .smart-pen-grid {
     grid-template-columns: 1fr;
   }
@@ -908,7 +895,7 @@ body {
 
   .app-main {
     align-items: center;
-    gap: 3rem;
+    gap: 2.5rem;
   }
 
   #bottom-nav {
