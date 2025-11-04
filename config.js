@@ -47,6 +47,7 @@ export const getDOMElements = () => ({
     videoFeedContainer: document.getElementById('video-feed-container'),
     loadingFeedEl: document.getElementById('loading-feed'),
     openPostModalBtn: document.getElementById('open-post-modal-btn'),
+    bottomNavEl: document.getElementById('bottom-nav'),
     
     // Post Form
     postForm: document.getElementById('post-form'),

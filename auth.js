@@ -81,7 +81,7 @@ const handleLogout = async (auth, DOM) => {
  * @param {function} loadPostsCallback - Callback để tải video khi người dùng đăng nhập
  */
 export const setupAuthListeners = (auth, DOM, loadPostsCallback) => {
-    
+
     // Gắn sự kiện cho form Đăng nhập
     DOM.loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -92,10 +92,14 @@ export const setupAuthListeners = (auth, DOM, loadPostsCallback) => {
     DOM.registerBtn.addEventListener('click', () => {
         handleAuth(auth, DOM, true); // Đăng ký
     });
-    
+
+    if (DOM.bottomNavEl) {
+        DOM.bottomNavEl.style.display = 'none';
+        DOM.bottomNavEl.setAttribute('aria-hidden', 'true');
+    }
+
     // Đặt hàm Đăng xuất vào global scope để nút tạo động trong header có thể gọi
     window.handleLogout = () => handleLogout(auth, DOM);
-
 
     // Lắng nghe trạng thái xác thực
     onAuthStateChanged(auth, async (user) => {
@@ -114,7 +118,19 @@ export const setupAuthListeners = (auth, DOM, loadPostsCallback) => {
 
             DOM.authContainer.classList.add('hidden');
             DOM.videoFeedContainer.style.display = 'block';
-            
+            if (DOM.videoFeedContainer?.scrollTo) {
+                DOM.videoFeedContainer.scrollTo({ top: 0, behavior: 'auto' });
+            } else if (DOM.videoFeedContainer) {
+                DOM.videoFeedContainer.scrollTop = 0;
+            }
+            window.scrollTo(0, 0);
+
+            if (DOM.bottomNavEl) {
+                DOM.bottomNavEl.style.display = 'flex';
+                DOM.bottomNavEl.setAttribute('aria-hidden', 'false');
+            }
+            window.dispatchEvent(new Event('resize'));
+
             // Tải video khi người dùng đã đăng nhập
             if (loadPostsCallback) {
                 loadPostsCallback(userId);
@@ -125,6 +141,12 @@ export const setupAuthListeners = (auth, DOM, loadPostsCallback) => {
             DOM.authStatusEl.textContent = "Chưa đăng nhập.";
             DOM.authContainer.classList.remove('hidden');
             DOM.videoFeedContainer.style.display = 'none';
+            if (DOM.bottomNavEl) {
+                DOM.bottomNavEl.style.display = 'none';
+                DOM.bottomNavEl.setAttribute('aria-hidden', 'true');
+            }
+            window.scrollTo(0, 0);
+            window.dispatchEvent(new Event('resize'));
         }
     });
 };

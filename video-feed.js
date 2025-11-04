@@ -12,10 +12,14 @@ let currentActiveMediaElement = null; // Biến trạng thái để theo dõi me
 let feedContainerRef = null;
 let fullscreenChangeRegistered = false;
 
-const isFeedInFullscreen = () => {
-    if (!feedContainerRef) return false;
-    const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-    return fullscreenElement === feedContainerRef;
+const getFullscreenElement = () =>
+    document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement || null;
+
+const isElementInFullscreen = (element) => {
+    if (!element) return false;
+    const fullscreenElement = getFullscreenElement();
+    if (!fullscreenElement) return false;
+    return fullscreenElement === element || element.contains(fullscreenElement);
 };
 
 const exitFeedFullscreen = () => {
@@ -27,22 +31,29 @@ const exitFeedFullscreen = () => {
 
 const updateFullscreenVisualState = () => {
     if (!feedContainerRef) return;
-    const isActive = isFeedInFullscreen();
-    feedContainerRef.classList.toggle('is-fullscreen', isActive);
-    feedContainerRef.dataset.fullscreen = isActive ? 'true' : 'false';
+    const fullscreenElement = getFullscreenElement();
+    const isActive = Boolean(fullscreenElement);
+
     document.body.classList.toggle('feed-fullscreen-active', isActive);
 
-    const fullscreenButtons = feedContainerRef.querySelectorAll('.fullscreen-btn');
-    fullscreenButtons.forEach((btn) => {
-        btn.dataset.state = isActive ? 'on' : 'off';
-        const label = isActive ? 'Thoát toàn màn hình' : 'Xem toàn màn hình';
-        btn.setAttribute('aria-label', label);
-        btn.setAttribute('title', label);
-    });
+    const postItems = feedContainerRef.querySelectorAll('.video-snap-item');
+    postItems.forEach((post) => {
+        const isPostFullscreen = isElementInFullscreen(post);
+        post.classList.toggle('is-fullscreen', isPostFullscreen);
+        post.dataset.fullscreen = isPostFullscreen ? 'true' : 'false';
 
-    const fullscreenIcons = feedContainerRef.querySelectorAll('.fullscreen-icon');
-    fullscreenIcons.forEach((icon) => {
-        icon.textContent = isActive ? '🗗' : '⛶';
+        const fullscreenBtn = post.querySelector('.fullscreen-btn');
+        if (fullscreenBtn) {
+            fullscreenBtn.dataset.state = isPostFullscreen ? 'on' : 'off';
+            const label = isPostFullscreen ? 'Thoát toàn màn hình' : 'Xem toàn màn hình';
+            fullscreenBtn.setAttribute('aria-label', label);
+            fullscreenBtn.setAttribute('title', label);
+        }
+
+        const fullscreenIcon = post.querySelector('.fullscreen-icon');
+        if (fullscreenIcon) {
+            fullscreenIcon.textContent = isPostFullscreen ? '🗗' : '⛶';
+        }
     });
 };
 
@@ -66,9 +77,10 @@ const ensureFullscreenListeners = (DOM) => {
     fullscreenChangeRegistered = true;
 };
 
-const toggleFeedFullscreen = (postElement) => {
-    if (!feedContainerRef) return;
-    if (isFeedInFullscreen()) {
+const togglePostFullscreen = (postElement) => {
+    if (!postElement) return;
+
+    if (isElementInFullscreen(postElement)) {
         const exitResult = exitFeedFullscreen();
         if (exitResult && typeof exitResult.then === 'function') {
             exitResult.finally(() => updateFullscreenVisualState());
@@ -78,20 +90,18 @@ const toggleFeedFullscreen = (postElement) => {
         return;
     }
 
+    const requestTarget = postElement;
     const request =
-        feedContainerRef.requestFullscreen ||
-        feedContainerRef.webkitRequestFullscreen ||
-        feedContainerRef.msRequestFullscreen;
+        requestTarget.requestFullscreen ||
+        requestTarget.webkitRequestFullscreen ||
+        requestTarget.msRequestFullscreen;
 
     if (typeof request !== 'function') return;
 
-    const maybePromise = request.call(feedContainerRef);
+    const maybePromise = request.call(requestTarget);
 
     const afterEnter = () => {
         updateFullscreenVisualState();
-        if (postElement) {
-            postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
     };
 
     if (maybePromise && typeof maybePromise.then === 'function') {
@@ -348,7 +358,7 @@ const renderVideoFeed = (posts, DOM) => {
         if (fullscreenBtn) {
             fullscreenBtn.addEventListener('click', (event) => {
                 event.stopPropagation();
-                toggleFeedFullscreen(postElement);
+                togglePostFullscreen(postElement);
             });
         }
 

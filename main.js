@@ -47,8 +47,11 @@ const recalcViewportHeights = () => {
   const headerHeight = headerRect ? headerRect.height : 0;
   let footerHeight = 0;
   if (bottomNavEl) {
-    const navRect = bottomNavEl.getBoundingClientRect();
-    footerHeight = Math.max(0, window.innerHeight - navRect.top);
+    const navComputed = window.getComputedStyle(bottomNavEl);
+    if (navComputed.display !== 'none') {
+      const navRect = bottomNavEl.getBoundingClientRect();
+      footerHeight = Math.max(0, window.innerHeight - navRect.top);
+    }
   }
   const availableHeight = Math.max(window.innerHeight - headerHeight - footerHeight, 320);
   layoutRoot.style.setProperty('--header-height', `${Math.round(headerHeight)}px`);
