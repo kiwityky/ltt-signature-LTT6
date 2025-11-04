@@ -29,7 +29,7 @@ import {
   getDownloadURL 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
-import { firebaseConfig, getDOMElements, GEMINI_API_KEY, GEMINI_API_URL, closeModal } from './config.js';
+import { firebaseConfig, getDOMElements, GEMINI_API_KEY, GEMINI_API_URL, closeModal, userExpertise } from './config.js';
 import { setupAuthListeners, getUserId } from './auth.js';
 import { loadPosts, setupVideoListeners } from './video-feed.js';
 
@@ -566,28 +566,104 @@ const aiSend = document.getElementById('ai-send');
 const aiMessages = document.getElementById('ai-messages');
 const aiClose = document.getElementById('close-ai-chat');
 
+const buildGeminiPayload = (question) => ({
+  systemInstruction: {
+    role: 'system',
+    parts: [
+      {
+        text: `Bạn là trợ lý ảo hỗ trợ học sinh THCS Lý Thánh Tông. Cung cấp lời khuyên rõ ràng, ưu tiên các bước thực hành và khuyến khích tinh thần học tập tích cực.`
+      },
+      {
+        text: `Thông tin chuyên môn của bạn: ${userExpertise}`
+      }
+    ]
+  },
+  contents: [
+    {
+      role: 'user',
+      parts: [
+        {
+          text: question
+        }
+      ]
+    }
+  ]
+});
+
+const extractGeminiAnswer = (data) => {
+  if (!data || !Array.isArray(data.candidates)) return null;
+  for (const candidate of data.candidates) {
+    const parts = candidate?.content?.parts;
+    if (!Array.isArray(parts)) continue;
+    const textParts = parts
+      .map((part) => (typeof part?.text === 'string' ? part.text.trim() : ''))
+      .filter(Boolean);
+    if (textParts.length) {
+      return textParts.join('\n').trim();
+    }
+  }
+  return null;
+};
+
+const handleGeminiFailure = (data) => {
+  const blockReason = data?.promptFeedback?.blockReason;
+  if (blockReason) {
+    return `Nội dung bị hệ thống chặn (${blockReason}). Vui lòng thử lại với câu hỏi khác.`;
+  }
+  const errorMessage = data?.error?.message;
+  if (errorMessage) {
+    return `Lỗi từ Gemini API: ${errorMessage}`;
+  }
+  return 'Xin lỗi, tôi chưa có câu trả lời cho điều đó.';
+};
+
 if (logoEl) logoEl.addEventListener('click', () => chatbox.classList.toggle('hidden'));
 if (aiClose) aiClose.addEventListener('click', () => chatbox.classList.add('hidden'));
 
+const submitGeminiQuestion = async () => {
+  const question = aiInput.value.trim();
+  if (!question) return;
+  appendMessage('user', question);
+  aiInput.value = '';
+  appendMessage('bot', 'Đang xử lý...');
+
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
+    updateLastBotMessage('Chưa cấu hình GEMINI_API_KEY hợp lệ trong file config.js.');
+    return;
+  }
+
+  try {
+    const response = await fetch(GEMINI_API_URL + GEMINI_API_KEY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildGeminiPayload(question))
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error response:', errorText);
+      updateLastBotMessage('Không thể kết nối tới Gemini API. Vui lòng kiểm tra khóa API hoặc thử lại sau.');
+      return;
+    }
+
+    const data = await response.json();
+    const answer = extractGeminiAnswer(data);
+    updateLastBotMessage(answer || handleGeminiFailure(data));
+  } catch (err) {
+    console.error(err);
+    updateLastBotMessage('Lỗi khi gọi API Gemini.');
+  }
+};
+
 if (aiSend) {
-  aiSend.addEventListener('click', async () => {
-    const question = aiInput.value.trim();
-    if (!question) return;
-    appendMessage('user', question);
-    aiInput.value = '';
-    appendMessage('bot', 'Đang xử lý...');
-    try {
-      const response = await fetch(GEMINI_API_URL + GEMINI_API_KEY, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: question }] }] })
-      });
-      const data = await response.json();
-      const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Xin lỗi, tôi chưa có câu trả lời cho điều đó.";
-      updateLastBotMessage(answer);
-    } catch (err) {
-      console.error(err);
-      updateLastBotMessage("Lỗi khi gọi API Gemini.");
+  aiSend.addEventListener('click', submitGeminiQuestion);
+}
+
+if (aiInput) {
+  aiInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      submitGeminiQuestion();
     }
   });
 }
