@@ -16,8 +16,74 @@ const rtdb = getDatabase(app);
 const SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
 const CHARACTERISTIC_UUID = "abcdefab-1234-5678-1234-56789abcdef1";
 
-// --- ID người dùng (trùng ESP32) ---
-const USER_ID = "UserID_12345";
+// --- Dùng PenID do người dùng nhập ---
+let penId = localStorage.getItem("penId") || "";
+const statusText = document.getElementById("pen-id-status");
+const connectBtn = document.getElementById("connect-pen-btn");
+const penInput = document.getElementById("pen-id-input");
+
+if (penInput && penId) penInput.value = penId;
+
+// Hàm lưu và kết nối bút
+function connectPen() {
+  const newPen = penInput?.value?.trim();
+  if (!newPen) {
+    alert("Vui lòng nhập Pen ID hợp lệ (ví dụ: LTT_6001)");
+    return;
+  }
+  penId = newPen;
+  localStorage.setItem("penId", penId);
+  statusText.textContent = `✅ Đã kết nối với bút ${penId}`;
+  startRealtimeListener(penId);
+}
+
+// Khi bấm “Kết nối”
+connectBtn?.addEventListener("click", connectPen);
+
+// Nếu có sẵn penId trước đó thì tự động kết nối
+if (penId) {
+  statusText.textContent = `🔄 Đang kết nối với ${penId}...`;
+  startRealtimeListener(penId);
+}
+
+// --- Hàm lắng nghe Realtime Database ---
+function startRealtimeListener(penId) {
+  const studyRef = ref(rtdb, `pens/${penId}/StudyData`);
+  onValue(studyRef, (snapshot) => {
+    const data = snapshot.val();
+    if (!data) {
+      setStatus("Chưa có dữ liệu từ bút thông minh.");
+      todayEl.textContent = "--";
+      totalEl.textContent = "--";
+      lastSyncEl.textContent = "--";
+      return;
+    }
+
+    const entries = Object.entries(data);
+    entries.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+    const latest = entries[entries.length - 1][1];
+
+    // Cập nhật giao diện
+    setStatus(`🔄 Bút ${penId}: Roll=${latest.roll?.toFixed?.(1) ?? "-"}°, Pitch=${latest.pitch?.toFixed?.(1) ?? "-"}`);
+    todayEl.textContent = `${entries.length} giây`;
+    totalEl.textContent = `${entries.length} bản ghi`;
+    lastSyncEl.textContent = new Date().toLocaleTimeString("vi-VN");
+
+    // Timeline (10 bản ghi cuối)
+    timelineEl.innerHTML = "";
+    entries.slice(-10).forEach(([key, item]) => {
+      const div = document.createElement("div");
+      div.className = "smart-pen-timeline__item";
+      div.innerHTML = `
+        <span class="smart-pen-timeline__time">${new Date(item.Timestamp || Date.now()).toLocaleTimeString("vi-VN")}</span>
+        <span class="smart-pen-timeline__duration">
+          Roll: ${item.roll?.toFixed?.(1) ?? "?"}, Pitch: ${item.pitch?.toFixed?.(1) ?? "?"}
+        </span>`;
+      timelineEl.appendChild(div);
+    });
+  });
+}
+
 
 // --- Tần suất ghi Firestore (nếu BLE kết nối) ---
 const FIREBASE_WRITE_INTERVAL_MS = 1000;
@@ -178,5 +244,34 @@ if (!modernDashboardActive) {
     }
   });
 } else {
-  console.info('smartpen-ble.js: Legacy Bluetooth giao diện đã vô hiệu để tránh xung đột với bảng điều khiển mới.');
+  // Luôn bật listener cho giao diện mới
+  const studyRef = ref(rtdb, `pens/${penId}/StudyData`);
+  onValue(studyRef, (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+    const entries = Object.entries(data);
+    const latest = entries[entries.length - 1][1];
+    const roll = latest.roll?.toFixed?.(2) ?? "-";
+    const pitch = latest.pitch?.toFixed?.(2) ?? "-";
+    const time = new Date(latest.Timestamp || Date.now()).toLocaleTimeString("vi-VN");
+
+    // Cập nhật giao diện
+    document.getElementById("smart-pen-today").textContent = `${entries.length} giây`;
+    document.getElementById("smart-pen-total").textContent = `${entries.length} bản ghi`;
+    document.getElementById("smart-pen-last-sync").textContent = time;
+
+    const timelineEl = document.getElementById("smart-pen-timeline");
+    timelineEl.innerHTML = "";
+    entries.slice(-10).forEach(([key, item]) => {
+      const div = document.createElement("div");
+      div.className = "smart-pen-timeline__item";
+      div.innerHTML = `
+        <span class="smart-pen-timeline__time">${new Date(item.Timestamp || Date.now()).toLocaleTimeString("vi-VN")}</span>
+        <span class="smart-pen-timeline__duration">
+          Roll: ${item.roll?.toFixed?.(1) ?? "?"}, Pitch: ${item.pitch?.toFixed?.(1) ?? "?"}
+        </span>`;
+      timelineEl.appendChild(div);
+    });
+  });
 }
+
