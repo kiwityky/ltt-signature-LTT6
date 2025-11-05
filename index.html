@@ -362,37 +362,64 @@
       <div class="info-card__header">
         <div>
           <h2 class="info-card__title" id="smart-pen-heading">🖊️ Bút Thông Minh</h2>
-          <p class="info-card__subtitle">Theo dõi thời gian học tập thực sự từ cảm biến chuyển động</p>
+          <p class="info-card__subtitle">Theo dõi thời gian luyện viết chi tiết theo từng phiên sử dụng</p>
         </div>
-        <button id="smart-pen-refresh" type="button" class="info-card__action">
-          <span class="info-card__action-label">Làm mới</span>
-          <span class="info-card__action-spinner" aria-hidden="true"></span>
-        </button>
-        <!-- Thêm ngay bên cạnh nút Làm mới trong #smart-pen-card -->
-<button id="connect-smartpen-btn"
-        class="info-card__action"
-        style="margin-left: .5rem;">
-  🔗 Kết nối Bluetooth
-</button>
-
       </div>
-      <div class="smart-pen-status" id="smart-pen-status" role="status" aria-live="polite">Đang chờ dữ liệu...</div>
+      <div
+        class="smart-pen-status"
+        id="smart-pen-status"
+        role="status"
+        aria-live="polite"
+        data-state="disconnected"
+      >
+        <span class="smart-pen-status__dot" aria-hidden="true"></span>
+        <div class="smart-pen-status__content">
+          <span class="smart-pen-status__label" id="smart-pen-status-text">Bút chưa kết nối với tài khoản</span>
+          <span class="smart-pen-status__hint" id="smart-pen-status-hint">Đăng nhập bằng tài khoản đã ghép nối để đồng bộ tự động.</span>
+        </div>
+      </div>
       <div class="smart-pen-grid">
         <div class="smart-pen-stat">
+          <span class="smart-pen-stat__label">Hôm nay</span>
           <span class="smart-pen-stat__value" id="smart-pen-today">--</span>
-          <span class="smart-pen-stat__label">Thời gian hôm nay</span>
         </div>
         <div class="smart-pen-stat">
-          <span class="smart-pen-stat__value" id="smart-pen-total">--</span>
-          <span class="smart-pen-stat__label">Tổng tích lũy</span>
+          <span class="smart-pen-stat__label">Phiên dài nhất hôm nay</span>
+          <span class="smart-pen-stat__value" id="smart-pen-today-longest">--</span>
         </div>
         <div class="smart-pen-stat">
-          <span class="smart-pen-stat__value" id="smart-pen-last-sync">--</span>
           <span class="smart-pen-stat__label">Đồng bộ gần nhất</span>
+          <span class="smart-pen-stat__value" id="smart-pen-last-sync">--</span>
+        </div>
+        <div class="smart-pen-stat">
+          <span class="smart-pen-stat__label">Tuần này</span>
+          <span class="smart-pen-stat__value" id="smart-pen-week">--</span>
+        </div>
+        <div class="smart-pen-stat">
+          <span class="smart-pen-stat__label">Tổng tích lũy</span>
+          <span class="smart-pen-stat__value" id="smart-pen-total">--</span>
         </div>
       </div>
-      <div class="smart-pen-timeline" id="smart-pen-timeline" aria-live="polite"></div>
-      <p class="smart-pen-empty hidden" id="smart-pen-empty">Chưa có dữ liệu nào từ thiết bị. Hãy nhấn nút đồng bộ trên bút để bắt đầu!</p>
+      <section class="smart-pen-section" aria-labelledby="smart-pen-monthly-heading">
+        <div class="smart-pen-section__header">
+          <h3 id="smart-pen-monthly-heading" class="smart-pen-section__title">Biểu đồ sử dụng trong tháng</h3>
+          <span id="smart-pen-monthly-total" class="smart-pen-section__meta">--</span>
+        </div>
+        <div
+          class="smart-pen-chart"
+          id="smart-pen-monthly-chart"
+          role="img"
+          aria-label="Biểu đồ tổng thời gian sử dụng bút theo từng ngày trong tháng hiện tại"
+        ></div>
+        <p class="smart-pen-chart__empty hidden" id="smart-pen-chart-empty">Chưa có dữ liệu sử dụng trong tháng này.</p>
+      </section>
+      <section class="smart-pen-section" aria-labelledby="smart-pen-timeline-heading">
+        <div class="smart-pen-section__header">
+          <h3 id="smart-pen-timeline-heading" class="smart-pen-section__title">Nhật ký các phiên gần đây</h3>
+        </div>
+        <div class="smart-pen-timeline" id="smart-pen-timeline" aria-live="polite"></div>
+        <p class="smart-pen-empty hidden" id="smart-pen-empty">Chưa có phiên sử dụng nào được ghi nhận.</p>
+      </section>
     </section>
   </div>
 </div>

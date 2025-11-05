@@ -79,7 +79,23 @@ recalcViewportHeights();
 const SMART_PEN_COLLECTION_PATH = 'Users/UserID_12345/StudyData';
 let smartPenQueryRef = null;
 let smartPenUnsubscribe = null;
-let smartPenStatusTimeout = null;
+
+const SMART_PEN_STATES = {
+  disconnected: {
+    label: 'Bút chưa kết nối với tài khoản',
+    hint: 'Đăng nhập bằng tài khoản đã ghép nối để đồng bộ tự động.'
+  },
+  idle: {
+    label: 'Đã kết nối | Đang ngừng viết',
+    hint: 'Bút sẵn sàng, hãy tiếp tục luyện viết khi bạn muốn.'
+  },
+  writing: {
+    label: 'Đang viết',
+    hint: 'Thời gian đang được ghi nhận theo từng giây.'
+  }
+};
+
+const SMART_PEN_WRITING_THRESHOLD_MINUTES = 2;
 
 const registerOverlayDismiss = (id) => {
   const overlay = document.getElementById(id);
@@ -93,24 +109,17 @@ const registerOverlayDismiss = (id) => {
 
 ['post-modal', 'profile-modal', 'game-center-modal', 'smart-pen-modal'].forEach(registerOverlayDismiss);
 
-const toggleSmartPenRefreshLoading = (isLoading) => {
-  if (!DOM.smartPenRefreshBtn) return;
-  DOM.smartPenRefreshBtn.disabled = Boolean(isLoading);
-  DOM.smartPenRefreshBtn.dataset.loading = isLoading ? 'true' : 'false';
-  DOM.smartPenRefreshBtn.setAttribute('aria-busy', isLoading ? 'true' : 'false');
-};
-
-const setSmartPenStatus = (message, revertTo = null, delay = 3200) => {
-  if (!DOM.smartPenStatusEl) return;
-  DOM.smartPenStatusEl.textContent = message;
-  if (smartPenStatusTimeout) {
-    clearTimeout(smartPenStatusTimeout);
-    smartPenStatusTimeout = null;
+const setSmartPenStatus = (state = 'disconnected') => {
+  const statusKey = SMART_PEN_STATES[state] ? state : 'disconnected';
+  const statusConfig = SMART_PEN_STATES[statusKey];
+  if (DOM.smartPenStatusEl) {
+    DOM.smartPenStatusEl.dataset.state = statusKey;
   }
-  if (revertTo) {
-    smartPenStatusTimeout = setTimeout(() => {
-      DOM.smartPenStatusEl.textContent = revertTo;
-    }, delay);
+  if (DOM.smartPenStatusTextEl) {
+    DOM.smartPenStatusTextEl.textContent = statusConfig.label;
+  }
+  if (DOM.smartPenStatusHintEl) {
+    DOM.smartPenStatusHintEl.textContent = statusConfig.hint;
   }
 };
 
@@ -163,6 +172,15 @@ const formatTimelineTimestamp = (date) => {
   return `${time} · ${day}`;
 };
 
+const getStartOfWeek = (referenceDate) => {
+  const date = new Date(referenceDate);
+  const day = date.getDay();
+  const diff = day === 0 ? -6 : 1 - day; // ISO tuần bắt đầu từ thứ Hai
+  date.setDate(date.getDate() + diff);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
 const buildSmartPenEntries = (docs) => {
   if (!Array.isArray(docs)) return [];
   return docs
@@ -187,48 +205,140 @@ const buildSmartPenEntries = (docs) => {
 const updateSmartPenView = (entries) => {
   if (!DOM.smartPenTodayEl || !DOM.smartPenTimelineEl) return false;
 
+  const now = new Date();
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const weekStart = getStartOfWeek(now);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const monthlyTotals = Array.from({ length: daysInMonth }, () => 0);
+
   if (!entries.length) {
     DOM.smartPenTodayEl.textContent = '--';
-    DOM.smartPenTotalEl.textContent = '--';
-    DOM.smartPenLastSyncEl.textContent = '--';
+    DOM.smartPenTodayLongestEl && (DOM.smartPenTodayLongestEl.textContent = '--');
+    DOM.smartPenWeekEl && (DOM.smartPenWeekEl.textContent = '--');
+    DOM.smartPenTotalEl && (DOM.smartPenTotalEl.textContent = '--');
+    DOM.smartPenLastSyncEl && (DOM.smartPenLastSyncEl.textContent = '--');
+    DOM.smartPenMonthlyTotalEl && (DOM.smartPenMonthlyTotalEl.textContent = '--');
     DOM.smartPenTimelineEl.innerHTML = '';
+    DOM.smartPenMonthlyChartEl && (DOM.smartPenMonthlyChartEl.innerHTML = '');
     DOM.smartPenEmptyEl?.classList.remove('hidden');
+    DOM.smartPenMonthlyEmptyEl?.classList.remove('hidden');
+    setSmartPenStatus('disconnected');
     return false;
   }
 
   DOM.smartPenEmptyEl?.classList.add('hidden');
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
   let todaySeconds = 0;
+  let weekSeconds = 0;
   let totalSeconds = 0;
+  let longestSessionToday = 0;
   let latestTimestamp = null;
 
   entries.forEach((entry, index) => {
-    totalSeconds += entry.seconds;
-    if (entry.timestamp && entry.timestamp >= todayStart) {
-      todaySeconds += entry.seconds;
-    }
-    if (index === 0 && entry.timestamp) {
-      latestTimestamp = entry.timestamp;
+    const seconds = Number(entry.seconds) || 0;
+    const timestamp = entry.timestamp instanceof Date ? entry.timestamp : null;
+    totalSeconds += seconds;
+
+    if (timestamp) {
+      if (!latestTimestamp && index === 0) {
+        latestTimestamp = timestamp;
+      }
+      if (timestamp >= todayStart) {
+        todaySeconds += seconds;
+        if (seconds > longestSessionToday) {
+          longestSessionToday = seconds;
+        }
+      }
+      if (timestamp >= weekStart) {
+        weekSeconds += seconds;
+      }
+      if (timestamp >= monthStart && timestamp.getMonth() === monthStart.getMonth()) {
+        const dayIndex = Math.min(daysInMonth - 1, Math.max(0, timestamp.getDate() - 1));
+        monthlyTotals[dayIndex] += seconds;
+      }
     }
   });
+
+  const statusState = (() => {
+    if (!latestTimestamp) return 'disconnected';
+    const diffMinutes = (Date.now() - latestTimestamp.getTime()) / 60000;
+    return diffMinutes <= SMART_PEN_WRITING_THRESHOLD_MINUTES ? 'writing' : 'idle';
+  })();
 
   DOM.smartPenTodayEl.textContent = formatDuration(todaySeconds);
-  DOM.smartPenTotalEl.textContent = formatDuration(totalSeconds);
-  DOM.smartPenLastSyncEl.textContent = formatRelativeTime(latestTimestamp);
+  if (DOM.smartPenTodayLongestEl) {
+    DOM.smartPenTodayLongestEl.textContent = longestSessionToday ? formatDuration(longestSessionToday) : '0 phút';
+  }
+  if (DOM.smartPenWeekEl) {
+    DOM.smartPenWeekEl.textContent = formatDuration(weekSeconds);
+  }
+  if (DOM.smartPenTotalEl) {
+    DOM.smartPenTotalEl.textContent = formatDuration(totalSeconds);
+  }
+  if (DOM.smartPenLastSyncEl) {
+    DOM.smartPenLastSyncEl.textContent = formatRelativeTime(latestTimestamp);
+  }
+
+  const monthlyTotalSeconds = monthlyTotals.reduce((sum, value) => sum + value, 0);
+  if (DOM.smartPenMonthlyTotalEl) {
+    DOM.smartPenMonthlyTotalEl.textContent = `Tổng tháng: ${formatDuration(monthlyTotalSeconds)}`;
+  }
+
+  if (DOM.smartPenMonthlyChartEl) {
+    DOM.smartPenMonthlyChartEl.innerHTML = '';
+    const maxSeconds = Math.max(...monthlyTotals);
+    if (maxSeconds <= 0) {
+      DOM.smartPenMonthlyEmptyEl?.classList.remove('hidden');
+      DOM.smartPenMonthlyChartEl.setAttribute('aria-hidden', 'true');
+    } else {
+      DOM.smartPenMonthlyEmptyEl?.classList.add('hidden');
+      DOM.smartPenMonthlyChartEl.removeAttribute('aria-hidden');
+      const todayIndex = now.getDate() - 1;
+      monthlyTotals.forEach((seconds, index) => {
+        const column = document.createElement('div');
+        column.className = 'smart-pen-chart__column';
+        const bar = document.createElement('div');
+        bar.className = 'smart-pen-chart__bar';
+        let normalizedHeight = maxSeconds ? Math.round((seconds / maxSeconds) * 120) : 0;
+        if (seconds > 0 && normalizedHeight < 8) {
+          normalizedHeight = 8;
+        }
+        bar.style.setProperty('--value', normalizedHeight > 0 ? normalizedHeight : 0);
+        bar.setAttribute('data-duration', seconds ? formatDuration(seconds) : '0 phút');
+        if (index === todayIndex) {
+          bar.setAttribute('data-active', 'true');
+        }
+        column.title = `Ngày ${index + 1}: ${seconds ? formatDuration(seconds) : '0 phút'}`;
+        column.appendChild(bar);
+        const dayLabel = document.createElement('span');
+        dayLabel.className = 'smart-pen-chart__day';
+        dayLabel.textContent = `${index + 1}`;
+        column.appendChild(dayLabel);
+        DOM.smartPenMonthlyChartEl.appendChild(column);
+      });
+    }
+  }
 
   DOM.smartPenTimelineEl.innerHTML = '';
-  entries.slice(0, 6).forEach((entry) => {
-    const item = document.createElement('div');
-    item.className = 'smart-pen-timeline__item';
-    item.innerHTML = `
-      <span class="smart-pen-timeline__time">${formatTimelineTimestamp(entry.timestamp)}</span>
-      <span class="smart-pen-timeline__duration">${formatDuration(entry.seconds)}</span>
-    `;
-    DOM.smartPenTimelineEl.appendChild(item);
-  });
+  const recentEntries = entries.slice(0, 6);
+  if (!recentEntries.length) {
+    DOM.smartPenEmptyEl?.classList.remove('hidden');
+  } else {
+    DOM.smartPenEmptyEl?.classList.add('hidden');
+    recentEntries.forEach((entry) => {
+      const item = document.createElement('div');
+      item.className = 'smart-pen-timeline__item';
+      item.innerHTML = `
+        <span class="smart-pen-timeline__time">${formatTimelineTimestamp(entry.timestamp)}</span>
+        <span class="smart-pen-timeline__duration">${formatDuration(entry.seconds)}</span>
+      `;
+      DOM.smartPenTimelineEl.appendChild(item);
+    });
+  }
+
+  setSmartPenStatus(statusState);
   return true;
 };
 
@@ -238,42 +348,19 @@ const initializeSmartPenListener = () => {
 
   const colRef = collection(db, SMART_PEN_COLLECTION_PATH);
   smartPenQueryRef = query(colRef, orderBy('Timestamp', 'desc'), limit(50));
-  setSmartPenStatus('Đang đồng bộ dữ liệu thời gian thực...');
+  setSmartPenStatus('disconnected');
 
   smartPenUnsubscribe = onSnapshot(
     smartPenQueryRef,
     (snapshot) => {
       const entries = buildSmartPenEntries(snapshot.docs);
-      const hasEntries = updateSmartPenView(entries);
-      setSmartPenStatus(hasEntries ? 'Đồng bộ thời gian thực' : 'Chưa có dữ liệu từ bút.');
+      updateSmartPenView(entries);
     },
     (error) => {
       console.error('Lỗi đồng bộ dữ liệu bút thông minh:', error);
-      setSmartPenStatus('Không thể lấy dữ liệu từ Firebase.');
+      setSmartPenStatus('disconnected');
     }
   );
-};
-
-const refreshSmartPenOnce = async () => {
-  if (!smartPenQueryRef) {
-    initializeSmartPenListener();
-    return;
-  }
-
-  toggleSmartPenRefreshLoading(true);
-  setSmartPenStatus('Đang làm mới dữ liệu...', null);
-
-  try {
-    const snapshot = await getDocs(smartPenQueryRef);
-    const entries = buildSmartPenEntries(snapshot.docs);
-    const hasEntries = updateSmartPenView(entries);
-    setSmartPenStatus('Đã làm mới thủ công', hasEntries ? 'Đồng bộ thời gian thực' : 'Chưa có dữ liệu từ bút.');
-  } catch (error) {
-    console.error('Lỗi làm mới dữ liệu bút thông minh:', error);
-    setSmartPenStatus('Không thể làm mới dữ liệu.');
-  } finally {
-    toggleSmartPenRefreshLoading(false);
-  }
 };
 
 try {
@@ -288,10 +375,6 @@ try {
   setupAuthListeners(auth, DOM, (userId) => loadPosts(db, DOM, getPostsCollectionRef));
   setupVideoListeners(DOM, { db, storage, getPostsCollectionRef, getUserId });
   initializeSmartPenListener();
-  if (DOM.smartPenRefreshBtn) {
-    toggleSmartPenRefreshLoading(false);
-    DOM.smartPenRefreshBtn.addEventListener('click', refreshSmartPenOnce);
-  }
   window.addEventListener('beforeunload', () => {
     if (typeof smartPenUnsubscribe === 'function') {
       smartPenUnsubscribe();

@@ -65,11 +65,17 @@ export const getDOMElements = () => ({
     sourceYoutubeRadio: document.getElementById('source-youtube'),
 
     // Smart Pen dashboard
-    smartPenRefreshBtn: document.getElementById('smart-pen-refresh'),
     smartPenStatusEl: document.getElementById('smart-pen-status'),
+    smartPenStatusTextEl: document.getElementById('smart-pen-status-text'),
+    smartPenStatusHintEl: document.getElementById('smart-pen-status-hint'),
     smartPenTodayEl: document.getElementById('smart-pen-today'),
-    smartPenTotalEl: document.getElementById('smart-pen-total'),
+    smartPenTodayLongestEl: document.getElementById('smart-pen-today-longest'),
     smartPenLastSyncEl: document.getElementById('smart-pen-last-sync'),
+    smartPenWeekEl: document.getElementById('smart-pen-week'),
+    smartPenTotalEl: document.getElementById('smart-pen-total'),
+    smartPenMonthlyTotalEl: document.getElementById('smart-pen-monthly-total'),
+    smartPenMonthlyChartEl: document.getElementById('smart-pen-monthly-chart'),
+    smartPenMonthlyEmptyEl: document.getElementById('smart-pen-chart-empty'),
     smartPenTimelineEl: document.getElementById('smart-pen-timeline'),
     smartPenEmptyEl: document.getElementById('smart-pen-empty'),
 
