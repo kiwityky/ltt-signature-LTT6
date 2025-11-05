@@ -368,6 +368,13 @@
           <span class="info-card__action-label">Làm mới</span>
           <span class="info-card__action-spinner" aria-hidden="true"></span>
         </button>
+        <!-- Thêm ngay bên cạnh nút Làm mới trong #smart-pen-card -->
+<button id="connect-smartpen-btn"
+        class="info-card__action"
+        style="margin-left: .5rem;">
+  🔗 Kết nối Bluetooth
+</button>
+
       </div>
       <div class="smart-pen-status" id="smart-pen-status" role="status" aria-live="polite">Đang chờ dữ liệu...</div>
       <div class="smart-pen-grid">
@@ -391,6 +398,6 @@
 </div>
 
     <script type="module" src="main.js"></script>
-    
+    <script type="module" src="smartpen-ble.js"></script>
 </body>
 </html>
