@@ -81,18 +81,9 @@ let smartPenQueryRef = null;
 let smartPenUnsubscribe = null;
 
 const SMART_PEN_STATES = {
-  disconnected: {
-    label: 'Bút chưa kết nối với tài khoản',
-    hint: 'Đăng nhập bằng tài khoản đã ghép nối để đồng bộ tự động.'
-  },
-  idle: {
-    label: 'Đã kết nối | Đang ngừng viết',
-    hint: 'Bút sẵn sàng, hãy tiếp tục luyện viết khi bạn muốn.'
-  },
-  writing: {
-    label: 'Đang viết',
-    hint: 'Thời gian đang được ghi nhận theo từng giây.'
-  }
+  disconnected: 'Chưa kết nối',
+  idle: 'Đã kết nối | tạm dừng viết',
+  writing: 'Đã kết nối | đang viết'
 };
 
 const SMART_PEN_WRITING_THRESHOLD_MINUTES = 2;
@@ -111,15 +102,11 @@ const registerOverlayDismiss = (id) => {
 
 const setSmartPenStatus = (state = 'disconnected') => {
   const statusKey = SMART_PEN_STATES[state] ? state : 'disconnected';
-  const statusConfig = SMART_PEN_STATES[statusKey];
   if (DOM.smartPenStatusEl) {
     DOM.smartPenStatusEl.dataset.state = statusKey;
   }
   if (DOM.smartPenStatusTextEl) {
-    DOM.smartPenStatusTextEl.textContent = statusConfig.label;
-  }
-  if (DOM.smartPenStatusHintEl) {
-    DOM.smartPenStatusHintEl.textContent = statusConfig.hint;
+    DOM.smartPenStatusTextEl.textContent = SMART_PEN_STATES[statusKey];
   }
 };
 
@@ -138,14 +125,14 @@ const parseTimestamp = (value) => {
 
 const formatDuration = (seconds) => {
   const total = Math.max(0, Math.round(Number(seconds) || 0));
-  if (total === 0) return '0 phút';
+  if (total === 0) return '0 giây';
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const secs = total % 60;
   const parts = [];
   if (hours) parts.push(`${hours}h`);
   if (minutes) parts.push(`${minutes}m`);
-  if (!hours && secs && parts.length < 1) parts.push(`${secs}s`);
+  if (!hours && secs && parts.length < 1) parts.push(`${secs} giây`);
   return parts.join(' ');
 };
 
@@ -163,13 +150,6 @@ const formatRelativeTime = (date) => {
     return `${hours} giờ trước`;
   }
   return date.toLocaleString('vi-VN');
-};
-
-const formatTimelineTimestamp = (date) => {
-  if (!date) return 'Không rõ thời gian';
-  const time = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  const day = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
-  return `${time} · ${day}`;
 };
 
 const getStartOfWeek = (referenceDate) => {
@@ -203,7 +183,7 @@ const buildSmartPenEntries = (docs) => {
 };
 
 const updateSmartPenView = (entries) => {
-  if (!DOM.smartPenTodayEl || !DOM.smartPenTimelineEl) return false;
+  if (!DOM.smartPenTodayEl || !DOM.smartPenStatusEl) return false;
 
   const now = new Date();
   const todayStart = new Date(now);
@@ -220,15 +200,11 @@ const updateSmartPenView = (entries) => {
     DOM.smartPenTotalEl && (DOM.smartPenTotalEl.textContent = '--');
     DOM.smartPenLastSyncEl && (DOM.smartPenLastSyncEl.textContent = '--');
     DOM.smartPenMonthlyTotalEl && (DOM.smartPenMonthlyTotalEl.textContent = '--');
-    DOM.smartPenTimelineEl.innerHTML = '';
     DOM.smartPenMonthlyChartEl && (DOM.smartPenMonthlyChartEl.innerHTML = '');
-    DOM.smartPenEmptyEl?.classList.remove('hidden');
     DOM.smartPenMonthlyEmptyEl?.classList.remove('hidden');
     setSmartPenStatus('disconnected');
     return false;
   }
-
-  DOM.smartPenEmptyEl?.classList.add('hidden');
 
   let todaySeconds = 0;
   let weekSeconds = 0;
@@ -321,29 +297,12 @@ const updateSmartPenView = (entries) => {
     }
   }
 
-  DOM.smartPenTimelineEl.innerHTML = '';
-  const recentEntries = entries.slice(0, 6);
-  if (!recentEntries.length) {
-    DOM.smartPenEmptyEl?.classList.remove('hidden');
-  } else {
-    DOM.smartPenEmptyEl?.classList.add('hidden');
-    recentEntries.forEach((entry) => {
-      const item = document.createElement('div');
-      item.className = 'smart-pen-timeline__item';
-      item.innerHTML = `
-        <span class="smart-pen-timeline__time">${formatTimelineTimestamp(entry.timestamp)}</span>
-        <span class="smart-pen-timeline__duration">${formatDuration(entry.seconds)}</span>
-      `;
-      DOM.smartPenTimelineEl.appendChild(item);
-    });
-  }
-
   setSmartPenStatus(statusState);
   return true;
 };
 
 const initializeSmartPenListener = () => {
-  if (!db || !DOM.smartPenTimelineEl) return;
+  if (!db || !DOM.smartPenStatusEl) return;
   if (smartPenUnsubscribe) return;
 
   const colRef = collection(db, SMART_PEN_COLLECTION_PATH);

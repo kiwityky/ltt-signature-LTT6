@@ -22,6 +22,12 @@ const statusText = document.getElementById("pen-id-status");
 const connectBtn = document.getElementById("connect-pen-btn");
 const penInput = document.getElementById("pen-id-input");
 
+const updatePenConnectionMessage = (text) => {
+  if (statusText) statusText.textContent = text;
+};
+
+let updateLegacyStatus = () => {};
+
 if (penInput && penId) penInput.value = penId;
 
 // Hàm lưu và kết nối bút
@@ -33,7 +39,7 @@ function connectPen() {
   }
   penId = newPen;
   localStorage.setItem("penId", penId);
-  statusText.textContent = `✅ Đã kết nối với bút ${penId}`;
+  updatePenConnectionMessage(`✅ Đã kết nối với bút ${penId}`);
   startRealtimeListener(penId);
 }
 
@@ -42,7 +48,7 @@ connectBtn?.addEventListener("click", connectPen);
 
 // Nếu có sẵn penId trước đó thì tự động kết nối
 if (penId) {
-  statusText.textContent = `🔄 Đang kết nối với ${penId}...`;
+  updatePenConnectionMessage(`🔄 Đang kết nối với ${penId}...`);
   startRealtimeListener(penId);
 }
 
@@ -52,7 +58,8 @@ function startRealtimeListener(penId) {
   onValue(studyRef, (snapshot) => {
     const data = snapshot.val();
     if (!data) {
-      setStatus("Chưa có dữ liệu từ bút thông minh.");
+      updatePenConnectionMessage("Chưa có dữ liệu từ bút thông minh.");
+      updateLegacyStatus("Chưa có dữ liệu từ bút thông minh.");
       todayEl.textContent = "--";
       totalEl.textContent = "--";
       lastSyncEl.textContent = "--";
@@ -63,29 +70,31 @@ function startRealtimeListener(penId) {
     entries.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
     const latest = entries[entries.length - 1][1];
 
-    // Cập nhật giao diện
-    setStatus(`🔄 Bút ${penId}: Roll=${latest.roll?.toFixed?.(1) ?? "-"}°, Pitch=${latest.pitch?.toFixed?.(1) ?? "-"}`);
-    todayEl.textContent = `${entries.length} giây`;
-    totalEl.textContent = `${entries.length} bản ghi`;
-    const latestTs = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
-lastSyncEl.textContent = vnTime.format(new Date(latestTs));
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
 
+    let todaySeconds = 0;
+    let totalSeconds = 0;
 
-    // Timeline (10 bản ghi cuối)
-    timelineEl.innerHTML = "";
-    entries.slice(-10).forEach(([key, item]) => {
-      const div = document.createElement("div");
-      div.className = "smart-pen-timeline__item";
-      const ts = item.Timestamp ? Number(item.Timestamp) : Date.now();
-const timeStr = vnTime.format(new Date(ts));
-div.innerHTML = `
-  <span class="smart-pen-timeline__time">${timeStr}</span>
-  <span class="smart-pen-timeline__duration">
-    Roll: ${item.roll?.toFixed?.(1) ?? "?"}, Pitch: ${item.pitch?.toFixed?.(1) ?? "?"}
-  </span>`;
-
-      timelineEl.appendChild(div);
+    entries.forEach(([, item]) => {
+      const seconds = Number(item.ActiveTimeSeconds ?? item.activeTimeSeconds ?? 0) || 0;
+      totalSeconds += seconds;
+      const rawTimestamp = item.Timestamp ?? item.timestamp;
+      const tsNumber = typeof rawTimestamp === "number" ? rawTimestamp : Number(rawTimestamp);
+      const entryDate = Number.isFinite(tsNumber) ? new Date(tsNumber) : null;
+      if (entryDate && entryDate >= todayStart) {
+        todaySeconds += seconds;
+      }
     });
+
+    const statusMessage = `🔄 Bút ${penId}: Roll=${latest.roll?.toFixed?.(1) ?? "-"}°, Pitch=${latest.pitch?.toFixed?.(1) ?? "-"}`;
+    updatePenConnectionMessage(statusMessage);
+    updateLegacyStatus(statusMessage);
+    todayEl.textContent = `${todaySeconds} giây`;
+    totalEl.textContent = `${totalSeconds} giây`;
+    const latestTs = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
+    lastSyncEl.textContent = vnTime.format(new Date(latestTs));
   });
 }
 
@@ -105,7 +114,6 @@ const vnTime = new Intl.DateTimeFormat('vi-VN', {
 const todayEl = document.getElementById("smart-pen-today");
 const totalEl = document.getElementById("smart-pen-total");
 const lastSyncEl = document.getElementById("smart-pen-last-sync");
-const timelineEl = document.getElementById("smart-pen-timeline");
 const statusEl = document.getElementById("smart-pen-status");
 const refreshBtn = document.getElementById("smart-pen-refresh");
 
@@ -115,9 +123,10 @@ if (!modernDashboardActive) {
   // =======================
   // 🔹 HÀM TRỢ GIÚP HIỂN THỊ
   // =======================
-  function setStatus(text) {
+  updateLegacyStatus = (text) => {
     if (statusEl) statusEl.textContent = text;
-  }
+    updatePenConnectionMessage(text);
+  };
   function setLiveValues(r, p) {
     if (statusEl)
       statusEl.textContent = `Đã kết nối BLE · Roll=${r.toFixed(2)}°, Pitch=${p.toFixed(2)}°`;
@@ -133,18 +142,18 @@ if (!modernDashboardActive) {
         optionalServices: [SERVICE_UUID],
       });
 
-      setStatus("🔗 Đang kết nối Bluetooth...");
+      updateLegacyStatus("🔗 Đang kết nối Bluetooth...");
       const server = await device.gatt.connect();
 
       device.addEventListener("gattserverdisconnected", () => {
-        setStatus("⚠️ Mất kết nối BLE. Nhấn 'Kết nối Bluetooth' để nối lại.");
+        updateLegacyStatus("⚠️ Mất kết nối BLE. Nhấn 'Kết nối Bluetooth' để nối lại.");
       });
 
       const service = await server.getPrimaryService(SERVICE_UUID);
       const characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
       await characteristic.startNotifications();
-      setStatus("✅ BLE đã kết nối, đang nhận dữ liệu...");
+      updateLegacyStatus("✅ BLE đã kết nối, đang nhận dữ liệu...");
 
       characteristic.addEventListener("characteristicvaluechanged", async (event) => {
         const text = new TextDecoder().decode(event.target.value);
@@ -166,7 +175,7 @@ if (!modernDashboardActive) {
       });
     } catch (err) {
       console.error(err);
-      setStatus("❌ Lỗi BLE: " + err.message);
+      updateLegacyStatus("❌ Lỗi BLE: " + err.message);
       alert("Không thể kết nối Bluetooth: " + err.message);
     }
   }
@@ -183,7 +192,7 @@ if (!modernDashboardActive) {
   onValue(studyRef, (snapshot) => {
     const data = snapshot.val();
     if (!data) {
-      setStatus("Chưa có dữ liệu từ bút thông minh.");
+      updateLegacyStatus("Chưa có dữ liệu từ bút thông minh.");
       todayEl.textContent = "--";
       totalEl.textContent = "--";
       lastSyncEl.textContent = "--";
@@ -194,28 +203,30 @@ if (!modernDashboardActive) {
     entries.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
     const latest = entries[entries.length - 1][1];
 
-    // Cập nhật giao diện
-    setStatus(
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+
+    let todaySeconds = 0;
+    let totalSeconds = 0;
+
+    entries.forEach(([, item]) => {
+      const seconds = Number(item.ActiveTimeSeconds ?? item.activeTimeSeconds ?? 0) || 0;
+      totalSeconds += seconds;
+      const rawTimestamp = item.Timestamp ?? item.timestamp;
+      const tsNumber = typeof rawTimestamp === "number" ? rawTimestamp : Number(rawTimestamp);
+      const entryDate = Number.isFinite(tsNumber) ? new Date(tsNumber) : null;
+      if (entryDate && entryDate >= todayStart) {
+        todaySeconds += seconds;
+      }
+    });
+
+    updateLegacyStatus(
       `🔄 Đang đồng bộ... Roll=${latest.roll?.toFixed?.(2) ?? "-"}°, Pitch=${latest.pitch?.toFixed?.(2) ?? "-"}°`
     );
-    todayEl.textContent = `${entries.length} giây`;
-    totalEl.textContent = `${entries.length} bản ghi`;
+    todayEl.textContent = `${todaySeconds} giây`;
+    totalEl.textContent = `${totalSeconds} giây`;
     lastSyncEl.textContent = new Date().toLocaleTimeString("vi-VN");
-
-    // Timeline (10 bản ghi cuối)
-    timelineEl.innerHTML = "";
-    entries.slice(-10).forEach(([key, item]) => {
-      const div = document.createElement("div");
-      div.className = "smart-pen-timeline__item";
-      div.innerHTML = `
-        <span class="smart-pen-timeline__time">${new Date(
-          item.Timestamp || Date.now()
-        ).toLocaleTimeString("vi-VN")}</span>
-        <span class="smart-pen-timeline__duration">
-          Roll: ${item.roll?.toFixed?.(1) ?? "?"}, Pitch: ${item.pitch?.toFixed?.(1) ?? "?"}
-        </span>`;
-      timelineEl.appendChild(div);
-    });
   });
 
   // =======================
@@ -242,7 +253,7 @@ if (!modernDashboardActive) {
       entries.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
       const latest = entries[entries.length - 1][1];
 
-      setStatus(`🔁 Làm mới: Roll=${latest.roll?.toFixed?.(2)}, Pitch=${latest.pitch?.toFixed?.(2)}`);
+      updateLegacyStatus(`🔁 Làm mới: Roll=${latest.roll?.toFixed?.(2)}, Pitch=${latest.pitch?.toFixed?.(2)}`);
       lastSyncEl.textContent = new Date().toLocaleTimeString("vi-VN");
     } catch (err) {
       console.error(err);
@@ -263,32 +274,30 @@ if (!modernDashboardActive) {
     if (!data) return;
     const entries = Object.entries(data);
     const latest = entries[entries.length - 1][1];
-    const roll = latest.roll?.toFixed?.(2) ?? "-";
-    const pitch = latest.pitch?.toFixed?.(2) ?? "-";
-    const time = new Date(latest.Timestamp || Date.now()).toLocaleTimeString("vi-VN");
 
-    // Cập nhật giao diện
-    document.getElementById("smart-pen-today").textContent = `${entries.length} giây`;
-    document.getElementById("smart-pen-total").textContent = `${entries.length} bản ghi`;
-    const latestTs2 = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
-document.getElementById("smart-pen-last-sync").textContent = vnTime.format(new Date(latestTs2));
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
 
+    let todaySeconds = 0;
+    let totalSeconds = 0;
 
-    const timelineEl = document.getElementById("smart-pen-timeline");
-    timelineEl.innerHTML = "";
-    entries.slice(-10).forEach(([key, item]) => {
-      const div = document.createElement("div");
-      div.className = "smart-pen-timeline__item";
-      div.innerHTML = `
-        const ts2 = item.Timestamp ? Number(item.Timestamp) : Date.now();
-const timeStr2 = vnTime.format(new Date(ts2));
-<span class="smart-pen-timeline__time">${timeStr2}</span>
-<span class="smart-pen-timeline__duration">
-          Roll: ${item.roll?.toFixed?.(1) ?? "?"}, Pitch: ${item.pitch?.toFixed?.(1) ?? "?"}
-        </span>`;
-      timelineEl.appendChild(div);
+    entries.forEach(([, item]) => {
+      const seconds = Number(item.ActiveTimeSeconds ?? item.activeTimeSeconds ?? 0) || 0;
+      totalSeconds += seconds;
+      const rawTimestamp = item.Timestamp ?? item.timestamp;
+      const tsNumber = typeof rawTimestamp === "number" ? rawTimestamp : Number(rawTimestamp);
+      const entryDate = Number.isFinite(tsNumber) ? new Date(tsNumber) : null;
+      if (entryDate && entryDate >= todayStart) {
+        todaySeconds += seconds;
+      }
     });
+
+    if (todayEl) todayEl.textContent = `${todaySeconds} giây`;
+    if (totalEl) totalEl.textContent = `${totalSeconds} giây`;
+    const latestTs2 = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
+    if (lastSyncEl) lastSyncEl.textContent = vnTime.format(new Date(latestTs2));
   });
-  
+
 }
 

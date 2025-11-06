@@ -67,7 +67,6 @@ export const getDOMElements = () => ({
     // Smart Pen dashboard
     smartPenStatusEl: document.getElementById('smart-pen-status'),
     smartPenStatusTextEl: document.getElementById('smart-pen-status-text'),
-    smartPenStatusHintEl: document.getElementById('smart-pen-status-hint'),
     smartPenTodayEl: document.getElementById('smart-pen-today'),
     smartPenTodayLongestEl: document.getElementById('smart-pen-today-longest'),
     smartPenLastSyncEl: document.getElementById('smart-pen-last-sync'),
@@ -76,8 +75,6 @@ export const getDOMElements = () => ({
     smartPenMonthlyTotalEl: document.getElementById('smart-pen-monthly-total'),
     smartPenMonthlyChartEl: document.getElementById('smart-pen-monthly-chart'),
     smartPenMonthlyEmptyEl: document.getElementById('smart-pen-chart-empty'),
-    smartPenTimelineEl: document.getElementById('smart-pen-timeline'),
-    smartPenEmptyEl: document.getElementById('smart-pen-empty'),
 
     // AI Recommend
     recommendBtn: document.getElementById('recommend-btn'),
