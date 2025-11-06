@@ -60,9 +60,11 @@ function startRealtimeListener(penId) {
     if (!data) {
       updatePenConnectionMessage("Chưa có dữ liệu từ bút thông minh.");
       updateLegacyStatus("Chưa có dữ liệu từ bút thông minh.");
-      todayEl.textContent = "--";
-      totalEl.textContent = "--";
-      lastSyncEl.textContent = "--";
+      if (!modernDashboardActive) {
+        todayEl.textContent = "--";
+        totalEl.textContent = "--";
+        lastSyncEl.textContent = "--";
+      }
       return;
     }
 
@@ -91,10 +93,12 @@ function startRealtimeListener(penId) {
     const statusMessage = `🔄 Bút ${penId}: Roll=${latest.roll?.toFixed?.(1) ?? "-"}°, Pitch=${latest.pitch?.toFixed?.(1) ?? "-"}`;
     updatePenConnectionMessage(statusMessage);
     updateLegacyStatus(statusMessage);
-    todayEl.textContent = `${todaySeconds} giây`;
-    totalEl.textContent = `${totalSeconds} giây`;
-    const latestTs = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
-    lastSyncEl.textContent = vnTime.format(new Date(latestTs));
+    if (!modernDashboardActive) {
+      todayEl.textContent = `${todaySeconds} giây`;
+      totalEl.textContent = `${totalSeconds} giây`;
+      const latestTs = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
+      lastSyncEl.textContent = vnTime.format(new Date(latestTs));
+    }
   });
 }
 
@@ -266,38 +270,5 @@ if (!modernDashboardActive) {
       refreshBtn.disabled = false;
     }
   });
-} else {
-  // Luôn bật listener cho giao diện mới
-  const studyRef = ref(rtdb, `pens/${penId}/StudyData`);
-  onValue(studyRef, (snapshot) => {
-    const data = snapshot.val();
-    if (!data) return;
-    const entries = Object.entries(data);
-    const latest = entries[entries.length - 1][1];
-
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-
-    let todaySeconds = 0;
-    let totalSeconds = 0;
-
-    entries.forEach(([, item]) => {
-      const seconds = Number(item.ActiveTimeSeconds ?? item.activeTimeSeconds ?? 0) || 0;
-      totalSeconds += seconds;
-      const rawTimestamp = item.Timestamp ?? item.timestamp;
-      const tsNumber = typeof rawTimestamp === "number" ? rawTimestamp : Number(rawTimestamp);
-      const entryDate = Number.isFinite(tsNumber) ? new Date(tsNumber) : null;
-      if (entryDate && entryDate >= todayStart) {
-        todaySeconds += seconds;
-      }
-    });
-
-    if (todayEl) todayEl.textContent = `${todaySeconds} giây`;
-    if (totalEl) totalEl.textContent = `${totalSeconds} giây`;
-    const latestTs2 = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
-    if (lastSyncEl) lastSyncEl.textContent = vnTime.format(new Date(latestTs2));
-  });
-
 }
 

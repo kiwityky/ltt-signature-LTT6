@@ -16,12 +16,13 @@ import {
   setDoc,
   updateDoc,
   arrayUnion,
-  serverTimestamp,
-  onSnapshot,
-  query,
-  orderBy,
-  limit
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import {
+  getDatabase,
+  ref as dbRef,
+  onValue
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 import { 
   getStorage, 
   ref, 
@@ -39,7 +40,7 @@ if (!penId) {
 }
 const DOM = getDOMElements();
 
-let app, db, auth, storage;
+let app, db, auth, storage, realtimeDb;
 
 const layoutRoot = document.documentElement;
 const headerEl = document.querySelector('.app-header');
@@ -80,8 +81,8 @@ window.addEventListener('load', () => {
 
 recalcViewportHeights();
 
-const SMART_PEN_COLLECTION_PATH = penId ? `Users/${penId}/StudyData` : null;
-let smartPenQueryRef = null;
+const SMART_PEN_REALTIME_PRIMARY_PATH = penId ? `pens/${penId}/StudyData` : null;
+const SMART_PEN_REALTIME_FALLBACK_PATH = penId ? `Users/${penId}/StudyData` : null;
 let smartPenUnsubscribe = null;
 
 const SMART_PEN_STATES = {
@@ -91,6 +92,7 @@ const SMART_PEN_STATES = {
 };
 
 const SMART_PEN_WRITING_THRESHOLD_MINUTES = 2;
+const SMART_PEN_SESSION_GAP_MINUTES = 3;
 
 const registerOverlayDismiss = (id) => {
   const overlay = document.getElementById(id);
@@ -165,25 +167,46 @@ const getStartOfWeek = (referenceDate) => {
   return date;
 };
 
-const buildSmartPenEntries = (docs) => {
-  if (!Array.isArray(docs)) return [];
-  return docs
-    .map((docSnap) => {
-      const data = typeof docSnap.data === 'function' ? docSnap.data() : {};
-      const seconds = Number(data.ActiveTimeSeconds ?? data.activeTimeSeconds ?? 0);
-      const timestamp = parseTimestamp(data.Timestamp ?? data.timestamp);
-      return {
-        id: docSnap.id,
-        seconds: Number.isFinite(seconds) ? seconds : 0,
-        timestamp
-      };
-    })
-    .filter((entry) => entry.seconds >= 0)
-    .sort((a, b) => {
-      const timeA = a.timestamp ? a.timestamp.getTime() : 0;
-      const timeB = b.timestamp ? b.timestamp.getTime() : 0;
-      return timeB - timeA;
-    });
+const buildSmartPenEntries = (source) => {
+  if (!source) return [];
+
+  const toEntry = (id, rawData = {}) => {
+    const seconds = Number(rawData.ActiveTimeSeconds ?? rawData.activeTimeSeconds ?? 0);
+    const timestamp = parseTimestamp(rawData.Timestamp ?? rawData.timestamp ?? rawData.createdAt);
+    return {
+      id,
+      seconds: Number.isFinite(seconds) && seconds >= 0 ? seconds : 0,
+      timestamp: timestamp instanceof Date && !Number.isNaN(timestamp.getTime()) ? timestamp : null,
+      raw: rawData
+    };
+  };
+
+  if (Array.isArray(source)) {
+    return source
+      .map((docSnap) => {
+        const data = typeof docSnap.data === 'function' ? docSnap.data() : {};
+        return toEntry(docSnap.id, data);
+      })
+      .filter((entry) => entry.seconds >= 0)
+      .sort((a, b) => {
+        const timeA = a.timestamp ? a.timestamp.getTime() : 0;
+        const timeB = b.timestamp ? b.timestamp.getTime() : 0;
+        return timeB - timeA;
+      });
+  }
+
+  if (typeof source === 'object') {
+    return Object.entries(source)
+      .map(([id, value]) => toEntry(id, value || {}))
+      .filter((entry) => entry.seconds >= 0)
+      .sort((a, b) => {
+        const timeA = a.timestamp ? a.timestamp.getTime() : 0;
+        const timeB = b.timestamp ? b.timestamp.getTime() : 0;
+        return timeB - timeA;
+      });
+  }
+
+  return [];
 };
 
 const updateSmartPenView = (entries) => {
@@ -227,9 +250,6 @@ const updateSmartPenView = (entries) => {
       }
       if (timestamp >= todayStart) {
         todaySeconds += seconds;
-        if (seconds > longestSessionToday) {
-          longestSessionToday = seconds;
-        }
       }
       if (timestamp >= weekStart) {
         weekSeconds += seconds;
@@ -241,15 +261,58 @@ const updateSmartPenView = (entries) => {
     }
   });
 
+  if (entries.length) {
+    const sessionGapMs = SMART_PEN_SESSION_GAP_MINUTES * 60000;
+    let sessionAccumulator = 0;
+    let lastSessionTimestamp = null;
+
+    const chronologicalEntries = entries
+      .filter((entry) => entry.timestamp instanceof Date)
+      .slice()
+      .sort((a, b) => {
+        const timeA = a.timestamp ? a.timestamp.getTime() : 0;
+        const timeB = b.timestamp ? b.timestamp.getTime() : 0;
+        return timeA - timeB;
+      });
+
+    chronologicalEntries.forEach((entry) => {
+      const timestamp = entry.timestamp;
+      const seconds = Number(entry.seconds) || 0;
+
+      if (!timestamp || timestamp < todayStart) {
+        return;
+      }
+
+      if (
+        lastSessionTimestamp &&
+        timestamp.getTime() - lastSessionTimestamp.getTime() > sessionGapMs
+      ) {
+        if (sessionAccumulator > longestSessionToday) {
+          longestSessionToday = sessionAccumulator;
+        }
+        sessionAccumulator = 0;
+      }
+
+      sessionAccumulator += seconds;
+      lastSessionTimestamp = timestamp;
+    });
+
+    if (sessionAccumulator > longestSessionToday) {
+      longestSessionToday = sessionAccumulator;
+    }
+  }
+
   const statusState = (() => {
-    if (!latestTimestamp) return 'disconnected';
+    if (!entries.length) return 'disconnected';
+    if (!latestTimestamp) return 'idle';
     const diffMinutes = (Date.now() - latestTimestamp.getTime()) / 60000;
     return diffMinutes <= SMART_PEN_WRITING_THRESHOLD_MINUTES ? 'writing' : 'idle';
   })();
 
   DOM.smartPenTodayEl.textContent = formatDuration(todaySeconds);
   if (DOM.smartPenTodayLongestEl) {
-    DOM.smartPenTodayLongestEl.textContent = longestSessionToday ? formatDuration(longestSessionToday) : '0 phút';
+    DOM.smartPenTodayLongestEl.textContent =
+      longestSessionToday ? formatDuration(longestSessionToday) : '0 giây';
   }
   if (DOM.smartPenWeekEl) {
     DOM.smartPenWeekEl.textContent = formatDuration(weekSeconds);
@@ -258,14 +321,15 @@ const updateSmartPenView = (entries) => {
     DOM.smartPenTotalEl.textContent = formatDuration(totalSeconds);
   }
   if (DOM.smartPenLastSyncEl) {
-  DOM.smartPenLastSyncEl.textContent = latestTimestamp
-    ? new Intl.DateTimeFormat('vi-VN', {
-        timeZone: 'Asia/Ho_Chi_Minh',
-        hour: '2-digit', minute: '2-digit', second: '2-digit',
-      }).format(latestTimestamp)
-    : '--';
-}
-
+    DOM.smartPenLastSyncEl.textContent = latestTimestamp
+      ? new Intl.DateTimeFormat('vi-VN', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }).format(latestTimestamp)
+      : '--';
+  }
 
   const monthlyTotalSeconds = monthlyTotals.reduce((sum, value) => sum + value, 0);
   if (DOM.smartPenMonthlyTotalEl) {
@@ -292,11 +356,12 @@ const updateSmartPenView = (entries) => {
           normalizedHeight = 8;
         }
         bar.style.setProperty('--value', normalizedHeight > 0 ? normalizedHeight : 0);
-        bar.setAttribute('data-duration', seconds ? formatDuration(seconds) : '0 phút');
+        bar.setAttribute('data-duration', seconds ? formatDuration(seconds) : '0 giây');
         if (index === todayIndex) {
           bar.setAttribute('data-active', 'true');
         }
-        column.title = `Ngày ${index + 1}: ${seconds ? formatDuration(seconds) : '0 phút'}`;
+        const formattedDuration = seconds ? formatDuration(seconds) : '0 giây';
+        column.title = `Ngày ${index + 1}: ${formattedDuration}`;
         column.appendChild(bar);
         const dayLabel = document.createElement('span');
         dayLabel.className = 'smart-pen-chart__day';
@@ -312,28 +377,69 @@ const updateSmartPenView = (entries) => {
 };
 
 const initializeSmartPenListener = () => {
-  if (!db || !DOM.smartPenStatusEl) return;
-  if (!SMART_PEN_COLLECTION_PATH) {  // chưa có penId
+  if (!realtimeDb || !DOM.smartPenStatusEl) return;
+  if (!SMART_PEN_REALTIME_PRIMARY_PATH) {
     setSmartPenStatus('disconnected');
     return;
   }
   if (smartPenUnsubscribe) return;
 
-  const colRef = collection(db, SMART_PEN_COLLECTION_PATH);
-  smartPenQueryRef = query(colRef, orderBy('Timestamp', 'desc'), limit(50));
   setSmartPenStatus('disconnected');
+  let usingFallback = false;
 
-  smartPenUnsubscribe = onSnapshot(
-    smartPenQueryRef,
-    (snapshot) => {
-      const entries = buildSmartPenEntries(snapshot.docs);
-      updateSmartPenView(entries);
-    },
-    (error) => {
-      console.error('Lỗi đồng bộ dữ liệu bút thông minh:', error);
-      setSmartPenStatus('disconnected');
-    }
-  );
+  const subscribe = (path, allowFallback = true) => {
+    const realtimeRef = dbRef(realtimeDb, path);
+
+    smartPenUnsubscribe = onValue(
+      realtimeRef,
+      (snapshot) => {
+        const value = snapshot.val();
+
+        if (!value) {
+          if (
+            allowFallback &&
+            !usingFallback &&
+            SMART_PEN_REALTIME_FALLBACK_PATH &&
+            SMART_PEN_REALTIME_FALLBACK_PATH !== path
+          ) {
+            usingFallback = true;
+            if (typeof smartPenUnsubscribe === 'function') {
+              smartPenUnsubscribe();
+              smartPenUnsubscribe = null;
+            }
+            subscribe(SMART_PEN_REALTIME_FALLBACK_PATH, false);
+            return;
+          }
+          updateSmartPenView([]);
+          return;
+        }
+
+        const entries = buildSmartPenEntries(value);
+        const hasData = updateSmartPenView(entries);
+
+        if (
+          !hasData &&
+          allowFallback &&
+          !usingFallback &&
+          SMART_PEN_REALTIME_FALLBACK_PATH &&
+          SMART_PEN_REALTIME_FALLBACK_PATH !== path
+        ) {
+          usingFallback = true;
+          if (typeof smartPenUnsubscribe === 'function') {
+            smartPenUnsubscribe();
+            smartPenUnsubscribe = null;
+          }
+          subscribe(SMART_PEN_REALTIME_FALLBACK_PATH, false);
+        }
+      },
+      (error) => {
+        console.error('Lỗi đồng bộ dữ liệu bút thông minh:', error);
+        setSmartPenStatus('disconnected');
+      }
+    );
+  };
+
+  subscribe(SMART_PEN_REALTIME_PRIMARY_PATH);
 };
 
 
@@ -342,6 +448,7 @@ try {
   db = getFirestore(app);
   auth = getAuth(app);
   storage = getStorage(app);
+  realtimeDb = getDatabase(app);
 
   DOM.authStatusEl.textContent = "Đang tải...";
 
