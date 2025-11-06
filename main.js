@@ -33,6 +33,10 @@ import { firebaseConfig, getDOMElements, GEMINI_API_KEY, GEMINI_API_URL, closeMo
 import { setupAuthListeners, getUserId } from './auth.js';
 import { loadPosts, setupVideoListeners } from './video-feed.js';
 
+const penId = localStorage.getItem('penId') || ''; // người dùng nhập ở UI bút, đã được lưu localStorage như smartpen-ble.js:contentReference[oaicite:3]{index=3}.
+if (!penId) {
+  console.warn('Chưa có PenID trong localStorage. Hãy nhập PenID ở phần "Bút thông minh".');
+}
 const DOM = getDOMElements();
 
 let app, db, auth, storage;
@@ -76,7 +80,7 @@ window.addEventListener('load', () => {
 
 recalcViewportHeights();
 
-const SMART_PEN_COLLECTION_PATH = 'Users/UserID_12345/StudyData';
+const SMART_PEN_COLLECTION_PATH = penId ? `Users/${penId}/StudyData` : null;
 let smartPenQueryRef = null;
 let smartPenUnsubscribe = null;
 
@@ -254,8 +258,14 @@ const updateSmartPenView = (entries) => {
     DOM.smartPenTotalEl.textContent = formatDuration(totalSeconds);
   }
   if (DOM.smartPenLastSyncEl) {
-    DOM.smartPenLastSyncEl.textContent = formatRelativeTime(latestTimestamp);
-  }
+  DOM.smartPenLastSyncEl.textContent = latestTimestamp
+    ? new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).format(latestTimestamp)
+    : '--';
+}
+
 
   const monthlyTotalSeconds = monthlyTotals.reduce((sum, value) => sum + value, 0);
   if (DOM.smartPenMonthlyTotalEl) {
@@ -303,6 +313,10 @@ const updateSmartPenView = (entries) => {
 
 const initializeSmartPenListener = () => {
   if (!db || !DOM.smartPenStatusEl) return;
+  if (!SMART_PEN_COLLECTION_PATH) {  // chưa có penId
+    setSmartPenStatus('disconnected');
+    return;
+  }
   if (smartPenUnsubscribe) return;
 
   const colRef = collection(db, SMART_PEN_COLLECTION_PATH);
@@ -321,6 +335,7 @@ const initializeSmartPenListener = () => {
     }
   );
 };
+
 
 try {
   app = initializeApp(firebaseConfig);
