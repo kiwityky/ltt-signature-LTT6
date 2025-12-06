@@ -49,7 +49,6 @@ const cors = require("cors");
 
 // CHỈ cho phép những domain này gọi Gemini proxy
 const allowedOrigins = [
-  "https://kiwityky.github.io/ltt-signature-LTT6/",        // sửa lại đúng domain hosting của Anh
   "https://kiwityky.github.io",
   "http://localhost:5500",             // để test local bằng firebase hosting:serve
 ];
