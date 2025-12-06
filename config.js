@@ -11,8 +11,8 @@ export const firebaseConfig = {
   appId: "1:792522787659:web:1e62ab3524b7ac830476ce",
   measurementId: "G-ZZN3QL0LB9"
 };
-export const GEMINI_API_KEY = "AIzaSyBGaMxGiLSyw4Gu1CfNnVO0V_yl5ud-2Ms"; // Cần thay bằng key hợp lệ
-export const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
+export const GEMINI_API_KEY = "AIzaSyCqi-hpu_TxdoMrvWLZclmgcmXGR6YM8TY"; // Cần thay bằng key hợp lệ
+export const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=";
 
 // ĐƯỜNG DẪN SVG
 export const MUTE_ICON_PATH = 'svg/mute.svg';
@@ -22,10 +22,10 @@ export const PAUSE_ICON_PATH = 'svg/pause.svg';
 export const LIKE_ICON_PATH = 'svg/like.svg';
 export const SHARE_ICON_PATH = 'svg/share.svg';
 
-// Dữ liệu hồ sơ chuyên môn của giảng viên (Dùng cho tính năng AI)
+// Dữ liệu hồ sơ chuyên môn của học sinh (Dùng cho tính năng AI)
 export const userExpertise = `
-    Giảng viên Vật lý và Công nghệ thông tin tại Việt Nam. 
-    Lĩnh vực nghiên cứu/giảng dạy: vật lý cổ điển, vật lý hạt nhân, lập trình web fullstack, lập trình nhúng, internet of things (IoT), AI. 
+    Giáo viên phổ thông tại Việt Nam. 
+    Lĩnh vực nghiên cứu/giảng dạy: toán, vật lý cổ điển, vật lý hạt nhân, hóa học, lập trình web fullstack, lập trình nhúng, internet of things (IoT), AI. 
     Sở thích: học ngoại ngữ (tiếng Anh, tiếng Trung), đọc sách, sức khỏe.
 `;
 
