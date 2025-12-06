@@ -41,6 +41,7 @@ if (!penId) {
 const DOM = getDOMElements();
 
 let app, db, auth, storage, realtimeDb;
+let smartPenUsageCollection = null;
 
 const layoutRoot = document.documentElement;
 const headerEl = document.querySelector('.app-header');
@@ -92,26 +93,48 @@ const SMART_PEN_STATES = {
 
 const SMART_PEN_WRITING_THRESHOLD_SECONDS = 20;
 const SMART_PEN_STATUS_STABLE_MS = 2000;
+const SMART_PEN_PERSIST_INTERVAL_MS = 10_000;
 
 let smartPenTimerId = null;
 let smartPenTodaySeconds = 0;
+let smartPenWeekSeconds = 0;
 let smartPenSessionSeconds = 0;
 let smartPenLongestSeconds = 0;
 let smartPenLastStatusMessage = null;
 let smartPenHasBaselineStatus = false;
 let smartPenStabilityTimeoutId = null;
 let smartPenDayKey = null;
+let smartPenUsagePersistTimeout = null;
+let smartPenLastPersistedSeconds = null;
+const smartPenDailyUsage = new Map();
 
-const getVietnamTodayKey = () => {
-  const nowInVietnamTz = new Date(
-    new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })
-  );
-  return nowInVietnamTz.toDateString();
+const getVietnamDate = (value = new Date()) =>
+  new Date(new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }));
+
+const toVietnamDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getVietnamTodayKey = () => toVietnamDateKey(getVietnamDate());
+
+const getVietnamWeekStartKey = (date = getVietnamDate()) => {
+  const normalized = getVietnamDate(date);
+  const day = normalized.getDay();
+  const diffToMonday = (day + 6) % 7; // Monday = 1
+  normalized.setHours(0, 0, 0, 0);
+  normalized.setDate(normalized.getDate() - diffToMonday);
+  return toVietnamDateKey(normalized);
 };
 
 const updateSmartPenTimerDisplays = () => {
   if (DOM.smartPenTodayEl) {
     DOM.smartPenTodayEl.textContent = formatDuration(smartPenTodaySeconds);
+  }
+  if (DOM.smartPenWeekEl) {
+    DOM.smartPenWeekEl.textContent = formatDuration(smartPenWeekSeconds);
   }
   if (DOM.smartPenTodayLongestEl) {
     DOM.smartPenTodayLongestEl.textContent = formatDuration(smartPenLongestSeconds);
@@ -119,7 +142,15 @@ const updateSmartPenTimerDisplays = () => {
 };
 
 const clearSmartPenTimerDisplays = () => {
-  if (DOM.smartPenTodayEl) DOM.smartPenTodayEl.textContent = '--';
+  if (DOM.smartPenTodayEl) {
+    const storedToday = smartPenDailyUsage.get(smartPenDayKey || getVietnamTodayKey());
+    DOM.smartPenTodayEl.textContent =
+      typeof storedToday === 'number' ? formatDuration(storedToday) : '--';
+  }
+  if (DOM.smartPenWeekEl) {
+    DOM.smartPenWeekEl.textContent =
+      typeof smartPenWeekSeconds === 'number' ? formatDuration(smartPenWeekSeconds) : '--';
+  }
   if (DOM.smartPenTodayLongestEl) DOM.smartPenTodayLongestEl.textContent = '--';
 };
 
@@ -127,6 +158,7 @@ const stopSmartPenTimer = () => {
   if (smartPenTimerId) {
     clearInterval(smartPenTimerId);
     smartPenTimerId = null;
+    persistSmartPenUsage(true);
   }
 };
 
@@ -141,10 +173,16 @@ const ensureSmartPenDayKey = () => {
   const currentDayKey = getVietnamTodayKey();
   if (smartPenDayKey !== currentDayKey) {
     smartPenDayKey = currentDayKey;
-    smartPenTodaySeconds = 0;
+    smartPenTodaySeconds = smartPenDailyUsage.get(smartPenDayKey) || 0;
     smartPenLongestSeconds = 0;
     smartPenSessionSeconds = 0;
+    if (!smartPenDailyUsage.has(smartPenDayKey)) {
+      smartPenDailyUsage.set(smartPenDayKey, smartPenTodaySeconds);
+      persistSmartPenUsage(true);
+    }
     updateSmartPenTimerDisplays();
+    updateSmartPenWeekSeconds();
+    renderSmartPenMonthlyChart();
   }
 };
 
@@ -159,8 +197,122 @@ const startSmartPenTimer = () => {
     smartPenTodaySeconds += 1;
     smartPenSessionSeconds += 1;
     smartPenLongestSeconds = Math.max(smartPenLongestSeconds, smartPenSessionSeconds);
+    smartPenDailyUsage.set(smartPenDayKey, smartPenTodaySeconds);
+    updateSmartPenWeekSeconds();
+    renderSmartPenMonthlyChart();
     updateSmartPenTimerDisplays();
+    scheduleSmartPenUsagePersist();
   }, 1000);
+};
+
+const updateSmartPenWeekSeconds = () => {
+  const weekStartKey = getVietnamWeekStartKey();
+  const todayKey = smartPenDayKey || getVietnamTodayKey();
+  let total = 0;
+
+  smartPenDailyUsage.forEach((seconds, dateKey) => {
+    if (dateKey >= weekStartKey && dateKey <= todayKey) {
+      total += Number(seconds) || 0;
+    }
+  });
+
+  smartPenWeekSeconds = total;
+  if (DOM.smartPenWeekEl) {
+    DOM.smartPenWeekEl.textContent = formatDuration(smartPenWeekSeconds);
+  }
+};
+
+const scheduleSmartPenUsagePersist = () => {
+  if (smartPenUsagePersistTimeout) return;
+  smartPenUsagePersistTimeout = setTimeout(() => {
+    persistSmartPenUsage();
+  }, SMART_PEN_PERSIST_INTERVAL_MS);
+};
+
+const persistSmartPenUsage = async (force = false) => {
+  if (!smartPenUsageCollection || !smartPenDayKey) return;
+  const currentSeconds = Math.max(0, Math.round(smartPenTodaySeconds));
+  smartPenDailyUsage.set(smartPenDayKey, currentSeconds);
+
+  if (!force && smartPenLastPersistedSeconds === currentSeconds) {
+    smartPenUsagePersistTimeout = null;
+    return;
+  }
+
+  try {
+    await setDoc(
+      doc(smartPenUsageCollection, smartPenDayKey),
+      { seconds: currentSeconds, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    smartPenLastPersistedSeconds = currentSeconds;
+  } catch (error) {
+    console.error('Không thể lưu dữ liệu Hôm nay:', error);
+  } finally {
+    smartPenUsagePersistTimeout = null;
+  }
+};
+
+const renderSmartPenMonthlyChart = () => {
+  if (!DOM.smartPenChartEl) return;
+
+  const today = getVietnamDate();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayKey = smartPenDayKey || getVietnamTodayKey();
+  const columns = [];
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const minutes = Math.round((smartPenDailyUsage.get(dateKey) || 0) / 60);
+    columns.push({
+      day,
+      minutes,
+      isToday: dateKey === todayKey
+    });
+  }
+
+  const maxMinutes = columns.reduce((max, col) => Math.max(max, col.minutes), 0);
+  if (maxMinutes === 0) {
+    DOM.smartPenChartEl.innerHTML = '<div class="smart-pen-chart__empty">Chưa có dữ liệu tháng này.</div>';
+    return;
+  }
+
+  const normalizedMax = Math.max(1, maxMinutes);
+
+  DOM.smartPenChartEl.innerHTML = columns
+    .map((col) => {
+      const barHeight = Math.max(6, Math.round((col.minutes / normalizedMax) * 140));
+      return `
+        <div class="smart-pen-chart__column" aria-label="Ngày ${col.day} - ${col.minutes} phút">
+          <div class="smart-pen-chart__bar" data-duration="${col.minutes}p" data-active="${col.isToday}" style="--value:${barHeight}"></div>
+          <div class="smart-pen-chart__day">${col.day}</div>
+        </div>
+      `;
+    })
+    .join('');
+};
+
+const loadSmartPenUsageHistory = async () => {
+  if (!smartPenUsageCollection) return;
+  try {
+    const snap = await getDocs(smartPenUsageCollection);
+    smartPenDailyUsage.clear();
+    snap.forEach((docSnap) => {
+      const data = docSnap.data() || {};
+      const seconds = Math.max(0, Math.round(Number(data.seconds) || 0));
+      smartPenDailyUsage.set(docSnap.id, seconds);
+    });
+
+    smartPenDayKey = getVietnamTodayKey();
+    smartPenTodaySeconds = smartPenDailyUsage.get(smartPenDayKey) || 0;
+    updateSmartPenWeekSeconds();
+    renderSmartPenMonthlyChart();
+    updateSmartPenTimerDisplays();
+  } catch (error) {
+    console.error('Không thể tải dữ liệu sử dụng bút:', error);
+  }
 };
 
 const registerOverlayDismiss = (id) => {
@@ -392,13 +544,16 @@ try {
   auth = getAuth(app);
   storage = getStorage(app);
   realtimeDb = getDatabase(app);
+  smartPenUsageCollection = penId ? collection(db, 'pens', penId, 'dailyUsage') : null;
 
   DOM.authStatusEl.textContent = "Đang tải...";
 
   setupAuthListeners(auth, DOM, () => loadPosts(db, DOM, { db, storage, getUserId }));
   setupVideoListeners(DOM, { db, storage, getUserId });
+  loadSmartPenUsageHistory();
   initializeSmartPenListener();
   window.addEventListener('beforeunload', () => {
+    persistSmartPenUsage(true);
     if (typeof smartPenUnsubscribe === 'function') {
       smartPenUnsubscribe();
       smartPenUnsubscribe = null;

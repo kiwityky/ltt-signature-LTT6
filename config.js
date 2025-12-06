@@ -68,7 +68,9 @@ export const getDOMElements = () => ({
     smartPenStatusEl: document.getElementById('smart-pen-status'),
     smartPenStatusTextEl: document.getElementById('smart-pen-status-text'),
     smartPenTodayEl: document.getElementById('smart-pen-today'),
+    smartPenWeekEl: document.getElementById('smart-pen-week'),
     smartPenTodayLongestEl: document.getElementById('smart-pen-today-longest'),
+    smartPenChartEl: document.getElementById('smart-pen-monthly-chart'),
 
     // AI Recommend
     recommendBtn: document.getElementById('recommend-btn'),
