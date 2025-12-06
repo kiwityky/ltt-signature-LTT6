@@ -95,10 +95,19 @@ const SMART_PEN_STATUS_STABLE_MS = 2000;
 
 let smartPenTimerId = null;
 let smartPenTodaySeconds = 0;
+let smartPenSessionSeconds = 0;
 let smartPenLongestSeconds = 0;
 let smartPenLastStatusMessage = null;
 let smartPenHasBaselineStatus = false;
 let smartPenStabilityTimeoutId = null;
+let smartPenDayKey = null;
+
+const getVietnamTodayKey = () => {
+  const nowInVietnamTz = new Date(
+    new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })
+  );
+  return nowInVietnamTz.toDateString();
+};
 
 const updateSmartPenTimerDisplays = () => {
   if (DOM.smartPenTodayEl) {
@@ -128,14 +137,28 @@ const clearSmartPenStabilityTimeout = () => {
   }
 };
 
+const ensureSmartPenDayKey = () => {
+  const currentDayKey = getVietnamTodayKey();
+  if (smartPenDayKey !== currentDayKey) {
+    smartPenDayKey = currentDayKey;
+    smartPenTodaySeconds = 0;
+    smartPenLongestSeconds = 0;
+    smartPenSessionSeconds = 0;
+    updateSmartPenTimerDisplays();
+  }
+};
+
 const startSmartPenTimer = () => {
   stopSmartPenTimer();
-  smartPenTodaySeconds = 0;
+  ensureSmartPenDayKey();
+  smartPenSessionSeconds = 0;
   smartPenLongestSeconds = 0;
   updateSmartPenTimerDisplays();
   smartPenTimerId = setInterval(() => {
+    ensureSmartPenDayKey();
     smartPenTodaySeconds += 1;
-    smartPenLongestSeconds = Math.max(smartPenLongestSeconds, smartPenTodaySeconds);
+    smartPenSessionSeconds += 1;
+    smartPenLongestSeconds = Math.max(smartPenLongestSeconds, smartPenSessionSeconds);
     updateSmartPenTimerDisplays();
   }, 1000);
 };
