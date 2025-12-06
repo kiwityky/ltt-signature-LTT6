@@ -43,60 +43,62 @@ exports.syncPenData = onValueCreated(
 });
 // index.js — Cloud Function proxy cho Gemini API
 
-// ❗ Quan trọng: GIỮ đúng dòng import này, KHÔNG dùng "firebase-functions/v2"
-const functions = require("firebase-functions");
-const cors = require("cors");
+// index.js — Cloud Function proxy cho Gemini API
 
-// CHỈ cho phép những domain này gọi Gemini proxy
+const functions = require("firebase-functions");
+
+// DANH SÁCH ORIGIN ĐƯỢC PHÉP
+// LƯU Ý: origin chỉ đến domain, KHÔNG có path /ltt-signature-LTT6/
 const allowedOrigins = [
   "https://kiwityky.github.io",
-  "http://localhost:5500",             // để test local bằng firebase hosting:serve
+  "http://localhost:5500",    // nếu Anh test local
 ];
 
-// Cấu hình CORS
-const corsMiddleware = cors({
-  origin: (origin, callback) => {
-    // origin = undefined nếu gọi từ tool/curl → chặn cho an toàn
-    if (!origin || !allowedOrigins.includes(origin)) {
-      console.log("Blocked origin:", origin);
-      return callback(new Error("Origin not allowed"), false);
-    }
-    return callback(null, true);
-  },
-});
+// HÀM PROXY
+exports.geminiProxy = functions.https.onRequest(async (req, res) => {
+  const origin = req.headers.origin;
 
-// Hàm proxy: frontend gọi tới đây, function sẽ gọi tiếp Gemini
-exports.geminiProxy = functions.https.onRequest((req, res) => {
-  corsMiddleware(req, res, async () => {
-    // Chỉ cho phép POST
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
+  // Thiết lập CORS cho những origin hợp lệ
+  if (allowedOrigins.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Vary", "Origin");
+    res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type");
+  }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.error("Missing GEMINI_API_KEY env");
-      return res.status(500).json({ error: "Missing Gemini API key" });
-    }
+  // Xử lý preflight OPTIONS
+  if (req.method === "OPTIONS") {
+    // Nếu origin không hợp lệ thì vẫn trả 204 nhưng browser sẽ không cho request tiếp
+    return res.status(204).send("");
+  }
 
-    try {
-      const url =
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" +
-        apiKey;
+  // Chặn luôn request nếu origin không được phép
+  if (!allowedOrigins.includes(origin)) {
+    console.log("Blocked origin:", origin);
+    return res.status(403).json({ error: "Origin not allowed" });
+  }
 
-      // Dùng global fetch (Node 18+). Nếu runtime chưa có fetch,
-      // bước sau mình sẽ nói cách nâng động cơ Node.
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(req.body),
-      });
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.error("Missing GEMINI_API_KEY env");
+    return res.status(500).json({ error: "Missing Gemini API key" });
+  }
 
-      const data = await response.json();
-      res.status(response.status).json(data);
-    } catch (err) {
-      console.error("Gemini proxy error:", err);
-      res.status(500).json({ error: "Internal server error" });
-    }
-  });
+  try {
+    const url =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" +
+      apiKey;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req.body),
+    });
+
+    const data = await response.json();
+    return res.status(response.status).json(data);
+  } catch (err) {
+    console.error("Gemini proxy error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 });
