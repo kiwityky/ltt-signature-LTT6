@@ -452,9 +452,9 @@ try {
 
   DOM.authStatusEl.textContent = "Đang tải...";
 
-  const getPostsCollectionRef = () => collection(db, `artifacts/${firebaseConfig.projectId}/public/data/videos`);
-  setupAuthListeners(auth, DOM, (userId) => loadPosts(db, DOM, getPostsCollectionRef));
-  setupVideoListeners(DOM, { db, storage, getPostsCollectionRef, getUserId });
+  const getVideosDbRef = () => dbRef(realtimeDb, '/videos');
+  setupAuthListeners(auth, DOM, () => loadPosts(realtimeDb, DOM));
+  setupVideoListeners(DOM, { db, storage, realtimeDb, getVideosDbRef, getUserId });
   initializeSmartPenListener();
   window.addEventListener('beforeunload', () => {
     if (typeof smartPenUnsubscribe === 'function') {

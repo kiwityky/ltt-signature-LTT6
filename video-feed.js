@@ -1,7 +1,17 @@
-import { serverTimestamp, addDoc, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+import {
+    ref as dbRef,
+    push,
+    set,
+    get,
+    query as dbQuery,
+    orderByKey,
+    startAt,
+    limitToFirst,
+    limitToLast
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 import { formatUserId, getYoutubeId, isYoutubeUrl, MUTE_ICON_PATH, UNMUTE_ICON_PATH, PLAY_ICON_PATH, PAUSE_ICON_PATH, closeModal } from './config.js';
-import { setDoc, getDoc, updateDoc, doc, arrayUnion, arrayRemove, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { serverTimestamp, setDoc, getDoc, updateDoc, doc, arrayUnion, arrayRemove, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { firebaseConfig, LIKE_ICON_PATH, SHARE_ICON_PATH } from './config.js';
 
 // Biến giữ dependencies để render có thể truy cập db & getUserId
@@ -113,7 +123,7 @@ const togglePostFullscreen = (postElement) => {
 
 // --- LOGIC XỬ LÝ POST VIDEO ---
 
-const handlePostSubmit = async (e, userId, db, storage, DOM, getPostsCollectionRef) => {
+const handlePostSubmit = async (e, userId, db, storage, DOM, getVideosDbRef) => {
     e.preventDefault();
     if (!userId) {
         DOM.postMessageEl.textContent = "Lỗi: Vui lòng đăng nhập.";
@@ -184,7 +194,13 @@ if (file.size > MAX_SIZE_MB * 1024 * 1024) {
             shareCount: 0
         };
 
-        await addDoc(getPostsCollectionRef(), newPost);
+        const videoRef = getVideosDbRef();
+        const newVideoRef = push(videoRef);
+        await set(newVideoRef, {
+            ...newPost,
+            createdAt: Date.now(),
+            id: newVideoRef.key
+        });
 
         try {
             const userRef = doc(db, 'users', userId);
@@ -533,19 +549,225 @@ const deleteVideo = async (videoId, videoUrl, isYoutube) => {
 };
 window.deleteVideo = deleteVideo;
 
-export const loadPosts = (db, DOM, getPostsCollectionRef) => {
-    const postsQuery = query(getPostsCollectionRef());
-    DOM.loadingFeedEl.classList.remove('hidden');
-    DOM.loadingFeedEl.textContent = 'Đang tải video...';
+const FEED_PAGE_SIZE = 10;
+const PLACEHOLDER_COUNT = 4;
 
-    onSnapshot(postsQuery, (snapshot) => {
-        const posts = [];
-        snapshot.forEach(doc => posts.push({ id: doc.id, ...doc.data() }));
-        posts.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-        renderVideoFeed(posts, DOM);
-        DOM.loadingFeedEl.classList.add('hidden');
-    });
+const createSkeletonCard = () => {
+    const skeleton = document.createElement('article');
+    skeleton.className = 'video-snap-item video-card skeleton-card snap-start animate-pulse';
+    skeleton.innerHTML = `
+        <div class="video-wrapper skeleton-media"></div>
+        <div class="p-4 space-y-3">
+            <div class="h-4 bg-gray-200 rounded w-2/3"></div>
+            <div class="h-3 bg-gray-200 rounded w-1/2"></div>
+            <div class="h-3 bg-gray-200 rounded w-full"></div>
+        </div>
+    `;
+    return skeleton;
 };
+
+const renderVideoCard = (video) => {
+    const card = document.createElement('article');
+    card.className = 'video-snap-item video-card snap-start';
+    card.dataset.key = video.id;
+
+    const mediaWrapper = document.createElement('div');
+    mediaWrapper.className = 'video-wrapper';
+
+    if (video.isYoutube && video.videoUrl) {
+        const youtubeId = getYoutubeId(video.videoUrl);
+        const iframe = document.createElement('iframe');
+        iframe.src = `https://www.youtube.com/embed/${youtubeId}?rel=0&playsinline=1`;
+        iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+        iframe.allowFullscreen = true;
+        iframe.loading = 'lazy';
+        mediaWrapper.appendChild(iframe);
+    } else {
+        const videoEl = document.createElement('video');
+        videoEl.src = video.videoUrl;
+        videoEl.controls = true;
+        videoEl.loop = true;
+        videoEl.preload = 'metadata';
+        videoEl.playsInline = true;
+        videoEl.className = 'w-full h-full object-cover rounded-xl';
+        mediaWrapper.appendChild(videoEl);
+    }
+
+    const content = document.createElement('div');
+    content.className = 'p-4 space-y-2';
+    content.innerHTML = `
+        <h3 class="text-lg font-semibold text-gray-900">${video.title || 'Video không tiêu đề'}</h3>
+        <p class="text-sm text-gray-600">${video.description || ''}</p>
+        <p class="text-xs text-gray-500">Đăng bởi ${video.username || 'Ẩn danh'}</p>
+    `;
+
+    card.append(mediaWrapper, content);
+    return card;
+};
+
+export const loadPage = async (realtimeDb, limit = FEED_PAGE_SIZE, startKey = null, useTail = false) => {
+    const baseRef = dbRef(realtimeDb, '/videos');
+    const pageLimit = limit + (startKey ? 1 : 0);
+    const constraints = [orderByKey()];
+
+    if (startKey) {
+        constraints.push(startAt(startKey));
+    }
+
+    constraints.push(useTail ? limitToLast(pageLimit) : limitToFirst(pageLimit));
+
+    const snapshot = await get(dbQuery(baseRef, ...constraints));
+    const rawData = snapshot.exists() ? snapshot.val() : {};
+    let entries = Object.entries(rawData).sort((a, b) => a[0].localeCompare(b[0]));
+
+    if (startKey) {
+        entries = entries.filter(([key]) => key !== startKey);
+    }
+
+    const hasMore = entries.length > limit;
+    const sliced = entries.slice(0, limit);
+    const items = sliced.map(([id, value]) => ({ id, ...value }));
+    const nextKey = items.length ? items[items.length - 1].id : null;
+
+    return { items, hasMore, nextKey };
+};
+
+class VideoFeed {
+    constructor({ realtimeDb, container, loadingEl, pageSize = FEED_PAGE_SIZE }) {
+        this.realtimeDb = realtimeDb;
+        this.container = container;
+        this.loadingEl = loadingEl;
+        this.pageSize = pageSize;
+        this.lastKey = null;
+        this.hasMore = true;
+        this.isLoading = false;
+        this.loadedKeys = new Set();
+        this.sentinel = document.createElement('div');
+        this.sentinel.className = 'feed-sentinel h-1 w-full';
+        this.observer = null;
+    }
+
+    init() {
+        this.renderSkeletons(PLACEHOLDER_COUNT);
+        this.attachInfiniteScroll();
+        this.attachScrollFallback();
+        this.loadNextPage();
+    }
+
+    renderSkeletons(count) {
+        if (!this.container) return;
+        const fragment = document.createDocumentFragment();
+        for (let i = 0; i < count; i++) {
+            fragment.appendChild(createSkeletonCard());
+        }
+        this.container.appendChild(fragment);
+    }
+
+    clearSkeletons() {
+        this.container.querySelectorAll('.skeleton-card').forEach((node) => node.remove());
+    }
+
+    appendVideos(videos) {
+        const fragment = document.createDocumentFragment();
+        videos.forEach((video) => {
+            if (this.loadedKeys.has(video.id)) return;
+            this.loadedKeys.add(video.id);
+            fragment.appendChild(renderVideoCard(video));
+        });
+        this.container.append(fragment);
+    }
+
+    async loadNextPage() {
+        if (this.isLoading || !this.hasMore || !this.realtimeDb) return;
+        this.isLoading = true;
+        this.loadingEl?.classList.remove('hidden');
+        this.loadingEl.textContent = 'Đang tải video...';
+
+        try {
+            const { items, hasMore, nextKey } = await loadPage(this.realtimeDb, this.pageSize, this.lastKey);
+            this.clearSkeletons();
+            this.appendVideos(items);
+            this.lastKey = nextKey;
+            this.hasMore = hasMore;
+            if (!hasMore) {
+                this.sentinel?.remove();
+            }
+        } catch (error) {
+            console.error('Không thể tải danh sách video:', error);
+            this.loadingEl.textContent = 'Không thể tải danh sách video. Vui lòng thử lại.';
+        } finally {
+            this.isLoading = false;
+            this.loadingEl?.classList.add('hidden');
+        }
+    }
+
+    attachInfiniteScroll() {
+        if (!('IntersectionObserver' in window) || !this.container) return;
+
+        this.container.appendChild(this.sentinel);
+        this.observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        this.loadNextPage();
+                    }
+                });
+            },
+            {
+                root: null,
+                rootMargin: '0px 0px -20% 0px',
+                threshold: 0
+            }
+        );
+
+        this.observer.observe(this.sentinel);
+    }
+
+    attachScrollFallback() {
+        const target = this.container || window;
+        target.addEventListener(
+            'scroll',
+            () => {
+                const el = this.container || document.documentElement;
+                const scrollTop = el.scrollTop || document.documentElement.scrollTop;
+                const scrollHeight = el.scrollHeight || document.documentElement.scrollHeight;
+                const clientHeight = el.clientHeight || window.innerHeight;
+                const ratio = scrollHeight > 0 ? (scrollTop + clientHeight) / scrollHeight : 0;
+                if (ratio >= 0.8) {
+                    this.loadNextPage();
+                }
+            },
+            { passive: true }
+        );
+    }
+
+    disconnect() {
+        if (this.observer && this.sentinel) {
+            this.observer.unobserve(this.sentinel);
+        }
+    }
+}
+
+let activeFeedInstance = null;
+
+export const initializeVideoFeed = (realtimeDb, DOM, options = {}) => {
+    if (!DOM?.videoFeedContainer) return null;
+    if (activeFeedInstance) {
+        activeFeedInstance.disconnect();
+    }
+
+    activeFeedInstance = new VideoFeed({
+        realtimeDb,
+        container: DOM.videoFeedContainer,
+        loadingEl: DOM.loadingFeedEl,
+        pageSize: options.pageSize || FEED_PAGE_SIZE
+    });
+
+    activeFeedInstance.init();
+    return activeFeedInstance;
+};
+
+export const loadPosts = (realtimeDb, DOM) => initializeVideoFeed(realtimeDb, DOM);
 
 export const setupVideoListeners = (DOM, dependencies) => {
     videoDependencies = dependencies;
@@ -562,6 +784,13 @@ export const setupVideoListeners = (DOM, dependencies) => {
 
     DOM.postForm.addEventListener('submit', (e) => {
         const userId = dependencies.getUserId();
-        handlePostSubmit(e, userId, dependencies.db, dependencies.storage, DOM, dependencies.getPostsCollectionRef);
+        handlePostSubmit(
+            e,
+            userId,
+            dependencies.db,
+            dependencies.storage,
+            DOM,
+            dependencies.getVideosDbRef
+        );
     });
 };
