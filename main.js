@@ -91,10 +91,14 @@ const SMART_PEN_STATES = {
 };
 
 const SMART_PEN_WRITING_THRESHOLD_SECONDS = 20;
+const SMART_PEN_STATUS_STABLE_MS = 2000;
 
 let smartPenTimerId = null;
 let smartPenTodaySeconds = 0;
 let smartPenLongestSeconds = 0;
+let smartPenLastStatusMessage = null;
+let smartPenHasBaselineStatus = false;
+let smartPenStabilityTimeoutId = null;
 
 const updateSmartPenTimerDisplays = () => {
   if (DOM.smartPenTodayEl) {
@@ -114,6 +118,13 @@ const stopSmartPenTimer = () => {
   if (smartPenTimerId) {
     clearInterval(smartPenTimerId);
     smartPenTimerId = null;
+  }
+};
+
+const clearSmartPenStabilityTimeout = () => {
+  if (smartPenStabilityTimeoutId) {
+    clearTimeout(smartPenStabilityTimeoutId);
+    smartPenStabilityTimeoutId = null;
   }
 };
 
@@ -251,6 +262,9 @@ const updateSmartPenView = (entries) => {
   if (!entries.length) {
     clearSmartPenTimerDisplays();
     stopSmartPenTimer();
+    clearSmartPenStabilityTimeout();
+    smartPenHasBaselineStatus = false;
+    smartPenLastStatusMessage = null;
     setSmartPenStatus('disconnected');
     return false;
   }
@@ -269,15 +283,38 @@ const updateSmartPenView = (entries) => {
     return diffSeconds <= SMART_PEN_WRITING_THRESHOLD_SECONDS ? 'writing' : 'idle';
   })();
 
-  if (!smartPenTimerId) {
-    startSmartPenTimer();
-  }
-
   const statusMessage = latestEntryForMessage
     ? `🔄 Bút ${penId}: Roll=${latestEntryForMessage.raw?.roll?.toFixed?.(1) ?? '-'}°, Pitch=${
         latestEntryForMessage.raw?.pitch?.toFixed?.(1) ?? '-'
       }`
     : SMART_PEN_STATES[statusState];
+
+  const normalizedStatusMessage =
+    typeof statusMessage === 'string' ? statusMessage.trim() : '';
+  const hasStatusChanged =
+    smartPenHasBaselineStatus &&
+    normalizedStatusMessage &&
+    normalizedStatusMessage !== smartPenLastStatusMessage;
+
+  if (!smartPenHasBaselineStatus && normalizedStatusMessage) {
+    smartPenHasBaselineStatus = true;
+    smartPenLastStatusMessage = normalizedStatusMessage;
+  }
+
+  if (hasStatusChanged) {
+    if (!smartPenTimerId) startSmartPenTimer();
+    clearSmartPenStabilityTimeout();
+    smartPenStabilityTimeoutId = setTimeout(
+      () => {
+        stopSmartPenTimer();
+      },
+      SMART_PEN_STATUS_STABLE_MS
+    );
+    smartPenLastStatusMessage = normalizedStatusMessage;
+  } else {
+    stopSmartPenTimer();
+    clearSmartPenStabilityTimeout();
+  }
 
   setSmartPenStatus(statusState, statusMessage);
   return true;
