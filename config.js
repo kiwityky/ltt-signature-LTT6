@@ -2,14 +2,14 @@
 // CẤU HÌNH FIREBASE VÀ AI
 // =================================================================================================
 export const firebaseConfig = {
-     apiKey: "AIzaSyAB77Kezrrrd_MacPEDFPrcl2hPrnTGFk0", // Cần thay bằng key hợp lệ
-    authDomain: "ltt5-e25a0.firebaseapp.com",
-    projectId: "ltt5-e25a0",
-    storageBucket: "ltt5-e25a0.firebasestorage.app", 
-    messagingSenderId: "792522787659",
-    appId: "1:792522787659:web:1e62ab3524b7ac830476ce",
-    measurementId: "G-ZZN3QL0LB9",
-    databaseURL: "https://ltt5-e25a0-default-rtdb.asia-southeast1.firebasedatabase.app",
+    apiKey: "AIzaSyB7YlkBxR_SOz9lS5rkachuGRylaAjZNT4",
+  authDomain: "ltt5-e25a0.firebaseapp.com",
+  databaseURL: "https://ltt5-e25a0-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "ltt5-e25a0",
+  storageBucket: "ltt5-e25a0.firebasestorage.app",
+  messagingSenderId: "792522787659",
+  appId: "1:792522787659:web:1e62ab3524b7ac830476ce",
+  measurementId: "G-ZZN3QL0LB9"
 };
 export const GEMINI_API_KEY = "AIzaSyBGaMxGiLSyw4Gu1CfNnVO0V_yl5ud-2Ms"; // Cần thay bằng key hợp lệ
 export const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=";
