@@ -11,9 +11,8 @@ export const firebaseConfig = {
   appId: "1:792522787659:web:1e62ab3524b7ac830476ce",
   measurementId: "G-ZZN3QL0LB9"
 };
-export const GEMINI_API_KEY = "AIzaSyCqi-hpu_TxdoMrvWLZclmgcmXGR6YM8TY"; // Cần thay bằng key hợp lệ
-export const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=";
 
+export const GEMINI_API_URL = "https://us-central1-ltt5-e25a0.cloudfunctions.net/geminiProxy";
 // ĐƯỜNG DẪN SVG
 export const MUTE_ICON_PATH = 'svg/mute.svg';
 export const UNMUTE_ICON_PATH = 'svg/unmute.svg';

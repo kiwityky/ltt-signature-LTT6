@@ -30,7 +30,7 @@ import {
   getDownloadURL 
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
-import { firebaseConfig, getDOMElements, GEMINI_API_KEY, GEMINI_API_URL, closeModal, userExpertise } from './config.js';
+import { firebaseConfig, getDOMElements, GEMINI_API_URL, closeModal, userExpertise } from './config.js';
 import { setupAuthListeners, getUserId } from './auth.js';
 import { loadPosts, setupVideoListeners } from './video-feed.js';
 
@@ -927,13 +927,10 @@ const submitGeminiQuestion = async () => {
   aiInput.value = '';
   appendMessage('bot', 'Đang xử lý...');
 
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === 'YOUR_GEMINI_API_KEY') {
-    updateLastBotMessage('Chưa cấu hình GEMINI_API_KEY hợp lệ trong file config.js.');
-    return;
-  }
+ 
 
   try {
-    const response = await fetch(GEMINI_API_URL + GEMINI_API_KEY, {
+    const response = await fetch(GEMINI_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildGeminiPayload(question))
