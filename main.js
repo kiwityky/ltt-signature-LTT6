@@ -91,7 +91,43 @@ const SMART_PEN_STATES = {
 };
 
 const SMART_PEN_WRITING_THRESHOLD_SECONDS = 20;
-const SMART_PEN_SESSION_MAX_GAP_SECONDS = SMART_PEN_WRITING_THRESHOLD_SECONDS;
+
+let smartPenTimerId = null;
+let smartPenTodaySeconds = 0;
+let smartPenLongestSeconds = 0;
+
+const updateSmartPenTimerDisplays = () => {
+  if (DOM.smartPenTodayEl) {
+    DOM.smartPenTodayEl.textContent = formatDuration(smartPenTodaySeconds);
+  }
+  if (DOM.smartPenTodayLongestEl) {
+    DOM.smartPenTodayLongestEl.textContent = formatDuration(smartPenLongestSeconds);
+  }
+};
+
+const clearSmartPenTimerDisplays = () => {
+  if (DOM.smartPenTodayEl) DOM.smartPenTodayEl.textContent = '--';
+  if (DOM.smartPenTodayLongestEl) DOM.smartPenTodayLongestEl.textContent = '--';
+};
+
+const stopSmartPenTimer = () => {
+  if (smartPenTimerId) {
+    clearInterval(smartPenTimerId);
+    smartPenTimerId = null;
+  }
+};
+
+const startSmartPenTimer = () => {
+  stopSmartPenTimer();
+  smartPenTodaySeconds = 0;
+  smartPenLongestSeconds = 0;
+  updateSmartPenTimerDisplays();
+  smartPenTimerId = setInterval(() => {
+    smartPenTodaySeconds += 1;
+    smartPenLongestSeconds = Math.max(smartPenLongestSeconds, smartPenTodaySeconds);
+    updateSmartPenTimerDisplays();
+  }, 1000);
+};
 
 const registerOverlayDismiss = (id) => {
   const overlay = document.getElementById(id);
@@ -212,17 +248,14 @@ const buildSmartPenEntries = (source) => {
 const updateSmartPenView = (entries) => {
   if (!DOM.smartPenTodayEl || !DOM.smartPenStatusEl) return false;
 
-  const now = new Date();
-  const todayStart = new Date(now);
-  todayStart.setHours(0, 0, 0, 0);
-
   if (!entries.length) {
-    DOM.smartPenTodayEl.textContent = '--';
-    DOM.smartPenTodayLongestEl && (DOM.smartPenTodayLongestEl.textContent = '--');
+    clearSmartPenTimerDisplays();
+    stopSmartPenTimer();
     setSmartPenStatus('disconnected');
     return false;
   }
 
+  const latestEntryForMessage = entries[0] || null;
   const latestTimestamp = entries.reduce((latest, entry) => {
     if (entry.timestamp instanceof Date) {
       return !latest || entry.timestamp > latest ? entry.timestamp : latest;
@@ -230,59 +263,14 @@ const updateSmartPenView = (entries) => {
     return latest;
   }, null);
 
-  const latestEntryForMessage = entries[0] || null;
-
-  const todayEntries = entries
-    .filter((entry) => entry.timestamp instanceof Date && entry.timestamp >= todayStart)
-    .sort((a, b) => a.timestamp - b.timestamp);
-
-  let todayTotalSeconds = 0;
-  let longestSessionSeconds = 0;
-
-  if (todayEntries.length > 0) {
-    const MAX_GAP_SECONDS = SMART_PEN_SESSION_MAX_GAP_SECONDS;
-
-    let currentSessionStart = todayEntries[0].timestamp;
-    let lastTimestamp = todayEntries[0].timestamp;
-
-    for (let i = 1; i < todayEntries.length; i++) {
-      const ts = todayEntries[i].timestamp;
-      const gapSec = (ts.getTime() - lastTimestamp.getTime()) / 1000;
-
-      if (gapSec <= MAX_GAP_SECONDS) {
-        lastTimestamp = ts;
-      } else {
-        const sessionDuration = (lastTimestamp.getTime() - currentSessionStart.getTime()) / 1000;
-        if (sessionDuration > 0) {
-          todayTotalSeconds += sessionDuration;
-          if (sessionDuration > longestSessionSeconds) {
-            longestSessionSeconds = sessionDuration;
-          }
-        }
-        currentSessionStart = ts;
-        lastTimestamp = ts;
-      }
-    }
-
-    const lastSessionDuration = (lastTimestamp.getTime() - currentSessionStart.getTime()) / 1000;
-    if (lastSessionDuration > 0) {
-      todayTotalSeconds += lastSessionDuration;
-      if (lastSessionDuration > longestSessionSeconds) {
-        longestSessionSeconds = lastSessionDuration;
-      }
-    }
-  }
-
   const statusState = (() => {
     if (!latestTimestamp) return 'idle';
     const diffSeconds = (Date.now() - latestTimestamp.getTime()) / 1000;
     return diffSeconds <= SMART_PEN_WRITING_THRESHOLD_SECONDS ? 'writing' : 'idle';
   })();
 
-  DOM.smartPenTodayEl.textContent = formatDuration(todayTotalSeconds);
-  if (DOM.smartPenTodayLongestEl) {
-    DOM.smartPenTodayLongestEl.textContent =
-      longestSessionSeconds ? formatDuration(longestSessionSeconds) : '0 giây';
+  if (!smartPenTimerId) {
+    startSmartPenTimer();
   }
 
   const statusMessage = latestEntryForMessage

@@ -19,11 +19,13 @@ const CHARACTERISTIC_UUID = "abcdefab-1234-5678-1234-56789abcdef1";
 // --- Dùng PenID do người dùng nhập ---
 let penId = localStorage.getItem("penId") || "";
 const statusText = document.getElementById("pen-id-status");
+const statusLabel = document.getElementById("smart-pen-status-text");
 const connectBtn = document.getElementById("connect-pen-btn");
 const penInput = document.getElementById("pen-id-input");
 
 const updatePenConnectionMessage = (text) => {
-  if (statusText) statusText.textContent = text;
+  if (statusText) statusText.textContent = "";
+  if (statusLabel) statusLabel.textContent = text;
 };
 
 let updateLegacyStatus = () => {};
