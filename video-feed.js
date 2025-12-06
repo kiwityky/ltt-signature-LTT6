@@ -11,9 +11,11 @@ import {
     deleteDoc,
     addDoc,
     collection,
-    onSnapshot,
     query,
-    orderBy
+    orderBy,
+    limit,
+    startAfter,
+    getDocs
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { formatUserId, getYoutubeId, isYoutubeUrl, MUTE_ICON_PATH, UNMUTE_ICON_PATH, PLAY_ICON_PATH, PAUSE_ICON_PATH, closeModal, firebaseConfig, LIKE_ICON_PATH, SHARE_ICON_PATH } from './config.js';
 
@@ -21,7 +23,17 @@ let videoDependencies = null;
 let currentActiveMediaElement = null;
 let feedContainerRef = null;
 let fullscreenChangeRegistered = false;
-let unsubscribeFeed = null;
+let lastVisibleDoc = null;
+let isLoadingPage = false;
+let hasMoreVideos = true;
+let cachedPosts = [];
+let loadMoreBtnRef = null;
+let sentinelRef = null;
+let sentinelObserver = null;
+let videoObserver = null;
+const intersectionRatioMap = new Map();
+
+const PAGE_SIZE = 10;
 
 const getVideosCollection = (db) => collection(db, 'artifacts', firebaseConfig.projectId, 'public', 'data', 'videos');
 
@@ -88,6 +100,51 @@ const ensureFullscreenListeners = (DOM) => {
     });
 
     fullscreenChangeRegistered = true;
+};
+
+const ensureLoadMoreControls = (DOM) => {
+    if (!DOM?.videoFeedContainer) return;
+
+    if (!loadMoreBtnRef) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'text-center py-6';
+
+        const btn = document.createElement('button');
+        btn.className = 'btn-primary px-6 py-3';
+        btn.textContent = 'Tải thêm';
+        btn.addEventListener('click', () => loadMoreVideos(DOM));
+
+        wrapper.appendChild(btn);
+        loadMoreBtnRef = btn;
+        DOM.videoFeedContainer.appendChild(wrapper);
+    }
+
+    if (!sentinelRef) {
+        sentinelRef = document.createElement('div');
+        sentinelRef.className = 'feed-end-sentinel h-6 w-full';
+        DOM.videoFeedContainer.appendChild(sentinelRef);
+    }
+};
+
+const setupSentinelObserver = (DOM) => {
+    if (!sentinelRef) return;
+    if (sentinelObserver) sentinelObserver.disconnect();
+
+    sentinelObserver = new IntersectionObserver(
+        (entries) => {
+            const shouldLoad = entries.some((entry) => entry.isIntersecting);
+            if (shouldLoad) loadMoreVideos(DOM);
+        },
+        { root: null, threshold: 0.1 }
+    );
+
+    sentinelObserver.observe(sentinelRef);
+};
+
+const setLoadMoreButtonState = (text, disabled = false) => {
+    if (!loadMoreBtnRef) return;
+    loadMoreBtnRef.textContent = text;
+    loadMoreBtnRef.disabled = disabled;
 };
 
 const togglePostFullscreen = (postElement) => {
@@ -277,28 +334,134 @@ const togglePlayPause = (mediaContainer) => {
 
     if (mediaElement.paused) {
         mediaElement.play().catch((e) => console.log("Play failed:", e));
-        playPauseIcon.classList.add('hidden');
+        if (playPauseIcon) playPauseIcon.classList.add('hidden');
     } else {
         mediaElement.pause();
-        playPauseIcon.src = PLAY_ICON_PATH;
-        playPauseIcon.classList.remove('hidden');
+        if (playPauseIcon) {
+            playPauseIcon.src = PLAY_ICON_PATH;
+            playPauseIcon.classList.remove('hidden');
+        }
     }
 
     currentActiveMediaElement = mediaElement;
 };
 window.togglePlayPause = togglePlayPause;
 
-const renderVideoFeed = (posts, DOM) => {
+const lazyLoadMedia = (postElement) => {
+    const mediaElement = postElement.querySelector('.media-element');
+    if (!mediaElement) return;
+
+    if (!mediaElement.dataset.loaded && mediaElement.dataset.src) {
+        mediaElement.src = mediaElement.dataset.src;
+        mediaElement.dataset.loaded = 'true';
+        if (mediaElement.tagName === 'VIDEO') {
+            mediaElement.load();
+        }
+    }
+};
+
+const pauseMediaElement = (mediaElement, playPauseIcon) => {
+    if (!mediaElement) return;
+    if (mediaElement.tagName === 'VIDEO') {
+        mediaElement.pause();
+        if (playPauseIcon) {
+            playPauseIcon.src = PLAY_ICON_PATH;
+            playPauseIcon.classList.remove('hidden');
+        }
+    }
+};
+
+const activateMediaElement = (postElement) => {
+    if (!postElement) return;
+    const mediaElement = postElement.querySelector('.media-element');
+    const playPauseIcon = postElement.querySelector('.play-pause-icon');
+    const iconImage = postElement.querySelector('.volume-icon');
+    if (!mediaElement) return;
+
+    if (currentActiveMediaElement && currentActiveMediaElement !== mediaElement) {
+        const prevIcon = currentActiveMediaElement.closest('.video-snap-item')?.querySelector('.play-pause-icon');
+        pauseMediaElement(currentActiveMediaElement, prevIcon);
+    }
+
+    if (mediaElement.tagName === 'VIDEO') {
+        mediaElement.muted = true;
+        mediaElement.play().catch(() => {});
+        if (playPauseIcon) playPauseIcon.classList.add('hidden');
+        if (iconImage) iconImage.src = MUTE_ICON_PATH;
+    }
+
+    currentActiveMediaElement = mediaElement;
+};
+
+const updateActiveMediaPlayback = () => {
+    let bestEntry = null;
+    let bestRatio = 0;
+
+    intersectionRatioMap.forEach((ratio, element) => {
+        if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestEntry = element;
+        }
+    });
+
+    if (bestEntry && bestRatio > 0.35) {
+        activateMediaElement(bestEntry);
+    } else if (currentActiveMediaElement) {
+        const playPauseIcon = currentActiveMediaElement.closest('.video-snap-item')?.querySelector('.play-pause-icon');
+        pauseMediaElement(currentActiveMediaElement, playPauseIcon);
+        currentActiveMediaElement = null;
+    }
+};
+
+const handleVideoScrolling = (DOM) => {
+    if (videoObserver) videoObserver.disconnect();
+    intersectionRatioMap.clear();
+
+    videoObserver = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                const postElement = entry.target;
+                const mediaElement = postElement.querySelector('.media-element');
+                const playPauseIcon = postElement.querySelector('.play-pause-icon');
+                if (!mediaElement) return;
+
+                if (entry.isIntersecting) {
+                    lazyLoadMedia(postElement);
+                    intersectionRatioMap.set(postElement, entry.intersectionRatio);
+                } else {
+                    intersectionRatioMap.set(postElement, 0);
+                    pauseMediaElement(mediaElement, playPauseIcon);
+                }
+            });
+
+            updateActiveMediaPlayback();
+        },
+        { root: null, threshold: [0.35, 0.6, 0.85] }
+    );
+
+    DOM.videoFeedContainer.querySelectorAll('.video-snap-item').forEach((item) => videoObserver.observe(item));
+};
+
+const renderVideoFeed = (posts, DOM, isAppend = false) => {
     ensureFullscreenListeners(DOM);
     updateFullscreenVisualState();
 
-    DOM.videoFeedContainer.innerHTML = '';
-    if (!posts.length) {
+    if (!isAppend) {
+        DOM.videoFeedContainer.innerHTML = '';
+        intersectionRatioMap.clear();
+        if (videoObserver) videoObserver.disconnect();
+        videoObserver = null;
+        currentActiveMediaElement = null;
+    }
+
+    if (!posts.length && !isAppend) {
         DOM.videoFeedContainer.appendChild(DOM.loadingFeedEl);
         DOM.loadingFeedEl.classList.remove('hidden');
         DOM.loadingFeedEl.textContent = 'Chưa có video nào. Hãy là người đầu tiên đăng bài!';
         return;
     }
+
+    DOM.loadingFeedEl.classList.add('hidden');
 
     posts.forEach((post) => {
         const postElement = document.createElement('div');
@@ -312,9 +475,9 @@ const renderVideoFeed = (posts, DOM) => {
             const videoId = getYoutubeId(post.videoUrl);
             if (!videoId) return;
             const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=0&mute=1&controls=0&disablekb=1&modestbranding=1&rel=0&loop=1&playlist=${videoId}`;
-            mediaHtml = `<iframe class="video-display media-element" src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media;" allowfullscreen></iframe>`;
+            mediaHtml = `<iframe class="video-display media-element" data-src="${embedUrl}" frameborder="0" allow="autoplay; encrypted-media;" allowfullscreen></iframe>`;
         } else {
-            mediaHtml = `<video class="video-display media-element" src="${post.videoUrl}" loop muted playsinline style="object-fit: contain; pointer-events: none;"></video>`;
+            mediaHtml = `<video class="video-display media-element" data-src="${post.videoUrl}" loop muted playsinline preload="none" style="object-fit: contain; pointer-events: none;"></video>`;
             playPauseOverlayHtml = `
                 <div onclick="togglePlayPause(this.closest('.video-snap-item'))" class="absolute inset-0 z-5 cursor-pointer"></div>
                 <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-black bg-opacity-0 p-4 rounded-full pointer-events-none">
@@ -392,47 +555,11 @@ const renderVideoFeed = (posts, DOM) => {
         }
     });
 
+    ensureLoadMoreControls(DOM);
     DOM.videoFeedContainer.prepend(DOM.loadingFeedEl);
     handleVideoScrolling(DOM);
+    setupSentinelObserver(DOM);
     updateFullscreenVisualState();
-};
-
-const handleVideoScrolling = (DOM) => {
-    const observer = new IntersectionObserver(
-        (entries) => {
-            entries.forEach((entry) => {
-                const mediaElement = entry.target.querySelector('.media-element');
-                const playPauseIcon = entry.target.querySelector('.play-pause-icon');
-                if (!mediaElement) return;
-                const iconImage = entry.target.querySelector('.volume-icon');
-
-                if (entry.isIntersecting) {
-                    if (mediaElement !== currentActiveMediaElement) {
-                        if (currentActiveMediaElement) {
-                            if (currentActiveMediaElement.tagName === 'VIDEO') {
-                                currentActiveMediaElement.pause();
-                                const oldIcon = currentActiveMediaElement.closest('.video-snap-item')?.querySelector('.play-pause-icon');
-                                if (oldIcon) oldIcon.src = PLAY_ICON_PATH;
-                            }
-                        }
-
-                        if (mediaElement.tagName === 'VIDEO') {
-                            mediaElement.muted = true;
-                            mediaElement.play().catch(() => {});
-                            if (playPauseIcon) playPauseIcon.classList.add('hidden');
-                        }
-                        currentActiveMediaElement = mediaElement;
-                        if (iconImage) iconImage.src = MUTE_ICON_PATH;
-                    }
-                } else if (mediaElement.tagName === 'VIDEO') {
-                    mediaElement.pause();
-                }
-            });
-        },
-        { root: DOM.videoFeedContainer, threshold: 0.8 }
-    );
-
-    DOM.videoFeedContainer.querySelectorAll('.video-snap-item').forEach((item) => observer.observe(item));
 };
 
 const handleLike = async (postId) => {
@@ -545,35 +672,99 @@ const deleteVideo = async (videoId, videoUrl, isYoutube) => {
 };
 window.deleteVideo = deleteVideo;
 
-export const loadPosts = (db, DOM, dependencies = null) => {
+const fetchVideosPage = async (db, afterDoc = null) => {
+    const videosCol = getVideosCollection(db);
+    const constraints = afterDoc
+        ? [orderBy('timestamp', 'desc'), startAfter(afterDoc), limit(PAGE_SIZE)]
+        : [orderBy('timestamp', 'desc'), limit(PAGE_SIZE)];
+
+    const videosQuery = query(videosCol, ...constraints);
+    const snapshot = await getDocs(videosQuery);
+    const posts = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+    const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+
+    return { posts, lastDoc };
+};
+
+const resetFeedState = () => {
+    lastVisibleDoc = null;
+    cachedPosts = [];
+    hasMoreVideos = true;
+    isLoadingPage = false;
+    intersectionRatioMap.clear();
+    if (videoObserver) videoObserver.disconnect();
+    videoObserver = null;
+    if (sentinelObserver) sentinelObserver.disconnect();
+    if (loadMoreBtnRef) {
+        loadMoreBtnRef.disabled = false;
+        loadMoreBtnRef.textContent = 'Tải thêm';
+    }
+    sentinelObserver = null;
+    loadMoreBtnRef = null;
+    sentinelRef = null;
+};
+
+export const loadPosts = async (db, DOM, dependencies = null) => {
     if (dependencies) {
         videoDependencies = dependencies;
     }
     if (!db || !DOM?.videoFeedContainer) return () => {};
-    if (unsubscribeFeed) unsubscribeFeed();
 
-    const videosCol = getVideosCollection(db);
-    const videosQuery = query(videosCol, orderBy('timestamp', 'desc'));
+    resetFeedState();
 
-    unsubscribeFeed = onSnapshot(
-        videosQuery,
-        (snapshot) => {
-            const posts = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-            posts.sort((a, b) => {
-                const timeA = a.timestamp?.toMillis ? a.timestamp.toMillis() : 0;
-                const timeB = b.timestamp?.toMillis ? b.timestamp.toMillis() : 0;
-                return timeB - timeA;
-            });
-            renderVideoFeed(posts, DOM);
-        },
-        (error) => {
-            console.error('Không thể tải video:', error);
-            DOM.loadingFeedEl.textContent = 'Không thể tải danh sách video.';
-            DOM.loadingFeedEl.classList.remove('hidden');
+    DOM.loadingFeedEl.classList.remove('hidden');
+    DOM.loadingFeedEl.textContent = 'Đang tải video...';
+
+    isLoadingPage = true;
+    try {
+        const { posts, lastDoc } = await fetchVideosPage(db, null);
+        cachedPosts = posts;
+        lastVisibleDoc = lastDoc;
+        hasMoreVideos = posts.length === PAGE_SIZE;
+
+        renderVideoFeed(posts, DOM, false);
+        setLoadMoreButtonState(hasMoreVideos ? 'Tải thêm' : 'Đã hết video', !hasMoreVideos);
+    } catch (error) {
+        console.error('Không thể tải video:', error);
+        DOM.loadingFeedEl.textContent = 'Không thể tải danh sách video.';
+        DOM.loadingFeedEl.classList.remove('hidden');
+    } finally {
+        isLoadingPage = false;
+    }
+
+    return () => {};
+};
+
+export const loadMoreVideos = async (DOM) => {
+    const deps = videoDependencies;
+    if (!deps?.db || !DOM?.videoFeedContainer) return;
+    if (isLoadingPage || !hasMoreVideos) return;
+
+    isLoadingPage = true;
+    setLoadMoreButtonState('Đang tải...', true);
+
+    try {
+        const { posts, lastDoc } = await fetchVideosPage(deps.db, lastVisibleDoc);
+        if (!posts.length) {
+            hasMoreVideos = false;
+            setLoadMoreButtonState('Đã hết video', true);
+            if (sentinelObserver) sentinelObserver.disconnect();
+            return;
         }
-    );
 
-    return unsubscribeFeed;
+        cachedPosts = [...cachedPosts, ...posts];
+        lastVisibleDoc = lastDoc;
+        hasMoreVideos = posts.length === PAGE_SIZE;
+
+        renderVideoFeed(posts, DOM, true);
+        setLoadMoreButtonState(hasMoreVideos ? 'Tải thêm' : 'Đã hết video', !hasMoreVideos);
+        if (!hasMoreVideos && sentinelObserver) sentinelObserver.disconnect();
+    } catch (error) {
+        console.error('Không thể tải thêm video:', error);
+        setLoadMoreButtonState('Tải thêm', false);
+    } finally {
+        isLoadingPage = false;
+    }
 };
 
 export const setupVideoListeners = (DOM, dependencies) => {
