@@ -121,7 +121,8 @@ const lastSyncEl = document.getElementById("smart-pen-last-sync");
 const statusEl = document.getElementById("smart-pen-status");
 const refreshBtn = document.getElementById("smart-pen-refresh");
 
-const modernDashboardActive = Boolean(document.getElementById("smart-pen-status-text"));
+// Dashboard mới đã đảm nhiệm toàn bộ hiển thị, cờ này giúp tránh ghi đè DOM từ mã cũ
+const modernDashboardActive = true;
 
 if (!modernDashboardActive) {
   // =======================

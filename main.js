@@ -82,7 +82,6 @@ window.addEventListener('load', () => {
 recalcViewportHeights();
 
 const SMART_PEN_REALTIME_PRIMARY_PATH = penId ? `pens/${penId}/StudyData` : null;
-const SMART_PEN_REALTIME_FALLBACK_PATH = penId ? `Users/${penId}/StudyData` : null;
 let smartPenUnsubscribe = null;
 
 const SMART_PEN_STATES = {
@@ -91,7 +90,7 @@ const SMART_PEN_STATES = {
   writing: 'Đã kết nối | đang viết'
 };
 
-const SMART_PEN_WRITING_THRESHOLD_MINUTES = 2;
+const SMART_PEN_WRITING_THRESHOLD_SECONDS = 20;
 const SMART_PEN_SESSION_GAP_MINUTES = 3;
 
 const registerOverlayDismiss = (id) => {
@@ -158,21 +157,17 @@ const formatRelativeTime = (date) => {
   return date.toLocaleString('vi-VN');
 };
 
-const getStartOfWeek = (referenceDate) => {
-  const date = new Date(referenceDate);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // ISO tuần bắt đầu từ thứ Hai
-  date.setDate(date.getDate() + diff);
-  date.setHours(0, 0, 0, 0);
-  return date;
-};
-
 const buildSmartPenEntries = (source) => {
   if (!source) return [];
 
   const toEntry = (id, rawData = {}) => {
-    const seconds = Number(rawData.ActiveTimeSeconds ?? rawData.activeTimeSeconds ?? 0);
     const timestamp = parseTimestamp(rawData.Timestamp ?? rawData.timestamp ?? rawData.createdAt);
+    let seconds = Number(rawData.ActiveTimeSeconds ?? rawData.activeTimeSeconds);
+
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      // Dữ liệu cũ chỉ có timestamp: mỗi bản ghi tương đương ~1 giây viết
+      seconds = timestamp instanceof Date && !Number.isNaN(timestamp.getTime()) ? 1 : 0;
+    }
     return {
       id,
       seconds: Number.isFinite(seconds) && seconds >= 0 ? seconds : 0,
@@ -215,48 +210,28 @@ const updateSmartPenView = (entries) => {
   const now = new Date();
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
-  const weekStart = getStartOfWeek(now);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const monthlyTotals = Array.from({ length: daysInMonth }, () => 0);
 
   if (!entries.length) {
     DOM.smartPenTodayEl.textContent = '--';
     DOM.smartPenTodayLongestEl && (DOM.smartPenTodayLongestEl.textContent = '--');
-    DOM.smartPenWeekEl && (DOM.smartPenWeekEl.textContent = '--');
-    DOM.smartPenTotalEl && (DOM.smartPenTotalEl.textContent = '--');
-    DOM.smartPenLastSyncEl && (DOM.smartPenLastSyncEl.textContent = '--');
-    DOM.smartPenMonthlyTotalEl && (DOM.smartPenMonthlyTotalEl.textContent = '--');
-    DOM.smartPenMonthlyChartEl && (DOM.smartPenMonthlyChartEl.innerHTML = '');
-    DOM.smartPenMonthlyEmptyEl?.classList.remove('hidden');
     setSmartPenStatus('disconnected');
     return false;
   }
 
   let todaySeconds = 0;
-  let weekSeconds = 0;
-  let totalSeconds = 0;
   let longestSessionToday = 0;
   let latestTimestamp = null;
 
-  entries.forEach((entry, index) => {
+  entries.forEach((entry) => {
     const seconds = Number(entry.seconds) || 0;
     const timestamp = entry.timestamp instanceof Date ? entry.timestamp : null;
-    totalSeconds += seconds;
 
     if (timestamp) {
-      if (!latestTimestamp && index === 0) {
+      if (!latestTimestamp || timestamp > latestTimestamp) {
         latestTimestamp = timestamp;
       }
       if (timestamp >= todayStart) {
         todaySeconds += seconds;
-      }
-      if (timestamp >= weekStart) {
-        weekSeconds += seconds;
-      }
-      if (timestamp >= monthStart && timestamp.getMonth() === monthStart.getMonth()) {
-        const dayIndex = Math.min(daysInMonth - 1, Math.max(0, timestamp.getDate() - 1));
-        monthlyTotals[dayIndex] += seconds;
       }
     }
   });
@@ -305,71 +280,14 @@ const updateSmartPenView = (entries) => {
   const statusState = (() => {
     if (!entries.length) return 'disconnected';
     if (!latestTimestamp) return 'idle';
-    const diffMinutes = (Date.now() - latestTimestamp.getTime()) / 60000;
-    return diffMinutes <= SMART_PEN_WRITING_THRESHOLD_MINUTES ? 'writing' : 'idle';
+    const diffSeconds = (Date.now() - latestTimestamp.getTime()) / 1000;
+    return diffSeconds <= SMART_PEN_WRITING_THRESHOLD_SECONDS ? 'writing' : 'idle';
   })();
 
   DOM.smartPenTodayEl.textContent = formatDuration(todaySeconds);
   if (DOM.smartPenTodayLongestEl) {
     DOM.smartPenTodayLongestEl.textContent =
       longestSessionToday ? formatDuration(longestSessionToday) : '0 giây';
-  }
-  if (DOM.smartPenWeekEl) {
-    DOM.smartPenWeekEl.textContent = formatDuration(weekSeconds);
-  }
-  if (DOM.smartPenTotalEl) {
-    DOM.smartPenTotalEl.textContent = formatDuration(totalSeconds);
-  }
-  if (DOM.smartPenLastSyncEl) {
-    DOM.smartPenLastSyncEl.textContent = latestTimestamp
-      ? new Intl.DateTimeFormat('vi-VN', {
-          timeZone: 'Asia/Ho_Chi_Minh',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }).format(latestTimestamp)
-      : '--';
-  }
-
-  const monthlyTotalSeconds = monthlyTotals.reduce((sum, value) => sum + value, 0);
-  if (DOM.smartPenMonthlyTotalEl) {
-    DOM.smartPenMonthlyTotalEl.textContent = `Tổng tháng: ${formatDuration(monthlyTotalSeconds)}`;
-  }
-
-  if (DOM.smartPenMonthlyChartEl) {
-    DOM.smartPenMonthlyChartEl.innerHTML = '';
-    const maxSeconds = Math.max(...monthlyTotals);
-    if (maxSeconds <= 0) {
-      DOM.smartPenMonthlyEmptyEl?.classList.remove('hidden');
-      DOM.smartPenMonthlyChartEl.setAttribute('aria-hidden', 'true');
-    } else {
-      DOM.smartPenMonthlyEmptyEl?.classList.add('hidden');
-      DOM.smartPenMonthlyChartEl.removeAttribute('aria-hidden');
-      const todayIndex = now.getDate() - 1;
-      monthlyTotals.forEach((seconds, index) => {
-        const column = document.createElement('div');
-        column.className = 'smart-pen-chart__column';
-        const bar = document.createElement('div');
-        bar.className = 'smart-pen-chart__bar';
-        let normalizedHeight = maxSeconds ? Math.round((seconds / maxSeconds) * 120) : 0;
-        if (seconds > 0 && normalizedHeight < 8) {
-          normalizedHeight = 8;
-        }
-        bar.style.setProperty('--value', normalizedHeight > 0 ? normalizedHeight : 0);
-        bar.setAttribute('data-duration', seconds ? formatDuration(seconds) : '0 giây');
-        if (index === todayIndex) {
-          bar.setAttribute('data-active', 'true');
-        }
-        const formattedDuration = seconds ? formatDuration(seconds) : '0 giây';
-        column.title = `Ngày ${index + 1}: ${formattedDuration}`;
-        column.appendChild(bar);
-        const dayLabel = document.createElement('span');
-        dayLabel.className = 'smart-pen-chart__day';
-        dayLabel.textContent = `${index + 1}`;
-        column.appendChild(dayLabel);
-        DOM.smartPenMonthlyChartEl.appendChild(column);
-      });
-    }
   }
 
   setSmartPenStatus(statusState);
@@ -385,61 +303,37 @@ const initializeSmartPenListener = () => {
   if (smartPenUnsubscribe) return;
 
   setSmartPenStatus('disconnected');
-  let usingFallback = false;
+  const realtimeRef = dbRef(realtimeDb, SMART_PEN_REALTIME_PRIMARY_PATH);
+  console.log('[SmartPen] Subscribing to Realtime Database path:', SMART_PEN_REALTIME_PRIMARY_PATH);
 
-  const subscribe = (path, allowFallback = true) => {
-    const realtimeRef = dbRef(realtimeDb, path);
+  smartPenUnsubscribe = onValue(
+    realtimeRef,
+    (snapshot) => {
+      const value = snapshot.val();
 
-    smartPenUnsubscribe = onValue(
-      realtimeRef,
-      (snapshot) => {
-        const value = snapshot.val();
-
-        if (!value) {
-          if (
-            allowFallback &&
-            !usingFallback &&
-            SMART_PEN_REALTIME_FALLBACK_PATH &&
-            SMART_PEN_REALTIME_FALLBACK_PATH !== path
-          ) {
-            usingFallback = true;
-            if (typeof smartPenUnsubscribe === 'function') {
-              smartPenUnsubscribe();
-              smartPenUnsubscribe = null;
-            }
-            subscribe(SMART_PEN_REALTIME_FALLBACK_PATH, false);
-            return;
-          }
-          updateSmartPenView([]);
-          return;
-        }
-
-        const entries = buildSmartPenEntries(value);
-        const hasData = updateSmartPenView(entries);
-
-        if (
-          !hasData &&
-          allowFallback &&
-          !usingFallback &&
-          SMART_PEN_REALTIME_FALLBACK_PATH &&
-          SMART_PEN_REALTIME_FALLBACK_PATH !== path
-        ) {
-          usingFallback = true;
-          if (typeof smartPenUnsubscribe === 'function') {
-            smartPenUnsubscribe();
-            smartPenUnsubscribe = null;
-          }
-          subscribe(SMART_PEN_REALTIME_FALLBACK_PATH, false);
-        }
-      },
-      (error) => {
-        console.error('Lỗi đồng bộ dữ liệu bút thông minh:', error);
-        setSmartPenStatus('disconnected');
+      if (!value) {
+        console.log('[SmartPen] No data received at path:', SMART_PEN_REALTIME_PRIMARY_PATH);
+        updateSmartPenView([]);
+        return;
       }
-    );
-  };
 
-  subscribe(SMART_PEN_REALTIME_PRIMARY_PATH);
+      const entries = buildSmartPenEntries(value);
+      const sampleEntries = entries.slice(0, 3).map((entry) => ({ id: entry.id, data: entry.raw }));
+      console.log(
+        '[SmartPen] Snapshot received',
+        `path=${SMART_PEN_REALTIME_PRIMARY_PATH}`,
+        `count=${entries.length}`,
+        'samples=',
+        sampleEntries
+      );
+
+      updateSmartPenView(entries);
+    },
+    (error) => {
+      console.error('Lỗi đồng bộ dữ liệu bút thông minh:', error);
+      setSmartPenStatus('disconnected');
+    }
+  );
 };
 
 
