@@ -161,7 +161,9 @@ const buildSmartPenEntries = (source) => {
   if (!source) return [];
 
   const toEntry = (id, rawData = {}) => {
-    const timestamp = parseTimestamp(rawData.Timestamp ?? rawData.timestamp ?? rawData.createdAt);
+    const timestamp = parseTimestamp(
+      rawData.Timestamp ?? rawData.timestamp ?? rawData.createdAt ?? id
+    );
     let seconds = Number(rawData.ActiveTimeSeconds ?? rawData.activeTimeSeconds);
 
     if (!Number.isFinite(seconds) || seconds <= 0) {
