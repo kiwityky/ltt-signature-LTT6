@@ -60,11 +60,6 @@ function startRealtimeListener(penId) {
     if (!data) {
       updatePenConnectionMessage("Chưa có dữ liệu từ bút thông minh.");
       updateLegacyStatus("Chưa có dữ liệu từ bút thông minh.");
-      if (!modernDashboardActive) {
-        todayEl.textContent = "--";
-        totalEl.textContent = "--";
-        lastSyncEl.textContent = "--";
-      }
       return;
     }
 
@@ -72,32 +67,13 @@ function startRealtimeListener(penId) {
     entries.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
     const latest = entries[entries.length - 1][1];
 
-    const now = new Date();
-    const todayStart = new Date(now);
-    todayStart.setHours(0, 0, 0, 0);
-
-    let todaySeconds = 0;
-    let totalSeconds = 0;
-
-    entries.forEach(([, item]) => {
-      const seconds = Number(item.ActiveTimeSeconds ?? item.activeTimeSeconds ?? 0) || 0;
-      totalSeconds += seconds;
-      const rawTimestamp = item.Timestamp ?? item.timestamp;
-      const tsNumber = typeof rawTimestamp === "number" ? rawTimestamp : Number(rawTimestamp);
-      const entryDate = Number.isFinite(tsNumber) ? new Date(tsNumber) : null;
-      if (entryDate && entryDate >= todayStart) {
-        todaySeconds += seconds;
-      }
-    });
-
     const statusMessage = `🔄 Bút ${penId}: Roll=${latest.roll?.toFixed?.(1) ?? "-"}°, Pitch=${latest.pitch?.toFixed?.(1) ?? "-"}`;
     updatePenConnectionMessage(statusMessage);
     updateLegacyStatus(statusMessage);
     if (!modernDashboardActive) {
-      todayEl.textContent = `${todaySeconds} giây`;
-      totalEl.textContent = `${totalSeconds} giây`;
-      const latestTs = latest?.Timestamp ? Number(latest.Timestamp) : Date.now();
-      lastSyncEl.textContent = vnTime.format(new Date(latestTs));
+      todayEl.textContent = "--";
+      totalEl.textContent = "--";
+      lastSyncEl.textContent = vnTime.format(new Date());
     }
   });
 }

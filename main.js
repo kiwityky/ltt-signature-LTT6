@@ -91,7 +91,7 @@ const SMART_PEN_STATES = {
 };
 
 const SMART_PEN_WRITING_THRESHOLD_SECONDS = 20;
-const SMART_PEN_SESSION_GAP_MINUTES = 3;
+const SMART_PEN_SESSION_MAX_GAP_SECONDS = SMART_PEN_WRITING_THRESHOLD_SECONDS;
 
 const registerOverlayDismiss = (id) => {
   const overlay = document.getElementById(id);
@@ -105,13 +105,16 @@ const registerOverlayDismiss = (id) => {
 
 ['post-modal', 'profile-modal', 'game-center-modal', 'smart-pen-modal'].forEach(registerOverlayDismiss);
 
-const setSmartPenStatus = (state = 'disconnected') => {
+const setSmartPenStatus = (state = 'disconnected', message) => {
   const statusKey = SMART_PEN_STATES[state] ? state : 'disconnected';
   if (DOM.smartPenStatusEl) {
     DOM.smartPenStatusEl.dataset.state = statusKey;
   }
   if (DOM.smartPenStatusTextEl) {
-    DOM.smartPenStatusTextEl.textContent = SMART_PEN_STATES[statusKey];
+    DOM.smartPenStatusTextEl.textContent =
+      typeof message === 'string' && message.trim().length > 0
+        ? message
+        : SMART_PEN_STATES[statusKey];
   }
 };
 
@@ -220,79 +223,75 @@ const updateSmartPenView = (entries) => {
     return false;
   }
 
-  let todaySeconds = 0;
-  let longestSessionToday = 0;
-  let latestTimestamp = null;
+  const latestTimestamp = entries.reduce((latest, entry) => {
+    if (entry.timestamp instanceof Date) {
+      return !latest || entry.timestamp > latest ? entry.timestamp : latest;
+    }
+    return latest;
+  }, null);
 
-  entries.forEach((entry) => {
-    const seconds = Number(entry.seconds) || 0;
-    const timestamp = entry.timestamp instanceof Date ? entry.timestamp : null;
+  const latestEntryForMessage = entries[0] || null;
 
-    if (timestamp) {
-      if (!latestTimestamp || timestamp > latestTimestamp) {
-        latestTimestamp = timestamp;
-      }
-      if (timestamp >= todayStart) {
-        todaySeconds += seconds;
+  const todayEntries = entries
+    .filter((entry) => entry.timestamp instanceof Date && entry.timestamp >= todayStart)
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  let todayTotalSeconds = 0;
+  let longestSessionSeconds = 0;
+
+  if (todayEntries.length > 0) {
+    const MAX_GAP_SECONDS = SMART_PEN_SESSION_MAX_GAP_SECONDS;
+
+    let currentSessionStart = todayEntries[0].timestamp;
+    let lastTimestamp = todayEntries[0].timestamp;
+
+    for (let i = 1; i < todayEntries.length; i++) {
+      const ts = todayEntries[i].timestamp;
+      const gapSec = (ts.getTime() - lastTimestamp.getTime()) / 1000;
+
+      if (gapSec <= MAX_GAP_SECONDS) {
+        lastTimestamp = ts;
+      } else {
+        const sessionDuration = (lastTimestamp.getTime() - currentSessionStart.getTime()) / 1000;
+        if (sessionDuration > 0) {
+          todayTotalSeconds += sessionDuration;
+          if (sessionDuration > longestSessionSeconds) {
+            longestSessionSeconds = sessionDuration;
+          }
+        }
+        currentSessionStart = ts;
+        lastTimestamp = ts;
       }
     }
-  });
 
-  if (entries.length) {
-    const sessionGapMs = SMART_PEN_SESSION_GAP_MINUTES * 60000;
-    let sessionAccumulator = 0;
-    let lastSessionTimestamp = null;
-
-    const chronologicalEntries = entries
-      .filter((entry) => entry.timestamp instanceof Date)
-      .slice()
-      .sort((a, b) => {
-        const timeA = a.timestamp ? a.timestamp.getTime() : 0;
-        const timeB = b.timestamp ? b.timestamp.getTime() : 0;
-        return timeA - timeB;
-      });
-
-    chronologicalEntries.forEach((entry) => {
-      const timestamp = entry.timestamp;
-      const seconds = Number(entry.seconds) || 0;
-
-      if (!timestamp || timestamp < todayStart) {
-        return;
+    const lastSessionDuration = (lastTimestamp.getTime() - currentSessionStart.getTime()) / 1000;
+    if (lastSessionDuration > 0) {
+      todayTotalSeconds += lastSessionDuration;
+      if (lastSessionDuration > longestSessionSeconds) {
+        longestSessionSeconds = lastSessionDuration;
       }
-
-      if (
-        lastSessionTimestamp &&
-        timestamp.getTime() - lastSessionTimestamp.getTime() > sessionGapMs
-      ) {
-        if (sessionAccumulator > longestSessionToday) {
-          longestSessionToday = sessionAccumulator;
-        }
-        sessionAccumulator = 0;
-      }
-
-      sessionAccumulator += seconds;
-      lastSessionTimestamp = timestamp;
-    });
-
-    if (sessionAccumulator > longestSessionToday) {
-      longestSessionToday = sessionAccumulator;
     }
   }
 
   const statusState = (() => {
-    if (!entries.length) return 'disconnected';
     if (!latestTimestamp) return 'idle';
     const diffSeconds = (Date.now() - latestTimestamp.getTime()) / 1000;
     return diffSeconds <= SMART_PEN_WRITING_THRESHOLD_SECONDS ? 'writing' : 'idle';
   })();
 
-  DOM.smartPenTodayEl.textContent = formatDuration(todaySeconds);
+  DOM.smartPenTodayEl.textContent = formatDuration(todayTotalSeconds);
   if (DOM.smartPenTodayLongestEl) {
     DOM.smartPenTodayLongestEl.textContent =
-      longestSessionToday ? formatDuration(longestSessionToday) : '0 giây';
+      longestSessionSeconds ? formatDuration(longestSessionSeconds) : '0 giây';
   }
 
-  setSmartPenStatus(statusState);
+  const statusMessage = latestEntryForMessage
+    ? `🔄 Bút ${penId}: Roll=${latestEntryForMessage.raw?.roll?.toFixed?.(1) ?? '-'}°, Pitch=${
+        latestEntryForMessage.raw?.pitch?.toFixed?.(1) ?? '-'
+      }`
+    : SMART_PEN_STATES[statusState];
+
+  setSmartPenStatus(statusState, statusMessage);
   return true;
 };
 
