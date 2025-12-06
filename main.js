@@ -452,9 +452,8 @@ try {
 
   DOM.authStatusEl.textContent = "Đang tải...";
 
-  const getVideosDbRef = () => dbRef(realtimeDb, '/videos');
-  setupAuthListeners(auth, DOM, () => loadPosts(realtimeDb, DOM));
-  setupVideoListeners(DOM, { db, storage, realtimeDb, getVideosDbRef, getUserId });
+  setupAuthListeners(auth, DOM, () => loadPosts(db, DOM, { db, storage, getUserId }));
+  setupVideoListeners(DOM, { db, storage, getUserId });
   initializeSmartPenListener();
   window.addEventListener('beforeunload', () => {
     if (typeof smartPenUnsubscribe === 'function') {
